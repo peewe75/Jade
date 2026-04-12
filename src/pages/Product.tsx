@@ -1,0 +1,406 @@
+import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { ChevronDown, ChevronUp, Star, Camera, X, RefreshCw } from 'lucide-react';
+import { useParams, Link } from 'react-router-dom';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase';
+import { useAuth } from '../contexts/AuthContext';
+
+interface ProductData {
+  id: string;
+  name: string;
+  price: number;
+  description: string;
+  images: string[];
+  category: string;
+  sizes?: string[];
+}
+
+export default function Product() {
+  const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const [product, setProduct] = useState<ProductData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState(0);
+  const [openAccordion, setOpenAccordion] = useState<string | null>('details');
+
+  // VTO State
+  const [isVtoModalOpen, setIsVtoModalOpen] = useState(false);
+  const [vtoFile, setVtoFile] = useState<File | null>(null);
+  const [vtoConsent, setVtoConsent] = useState(false);
+  const [isVtoProcessing, setIsVtoProcessing] = useState(false);
+  const [vtoResultImage, setVtoResultImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const fetchProduct = async () => {
+      if (!id) return;
+      try {
+        const docRef = doc(db, 'products', id);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setProduct({ id: docSnap.id, ...docSnap.data() } as ProductData);
+        }
+      } catch (error) {
+        console.error("Error fetching product:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProduct();
+  }, [id]);
+
+  const toggleAccordion = (id: string) => {
+    setOpenAccordion(openAccordion === id ? null : id);
+  };
+
+  const handleVtoSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!vtoFile || !vtoConsent || !displayProduct) return;
+
+    setIsVtoProcessing(true);
+    setVtoResultImage(null);
+
+    const formData = new FormData();
+    formData.append('userImage', vtoFile);
+    formData.append('productImageUrl', displayProduct.images[0]);
+    formData.append('productName', displayProduct.name);
+    formData.append('productCategory', displayProduct.category);
+
+    try {
+      const response = await fetch('/api/vto/process', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        console.error("Server returned error:", response.status, text);
+        alert(`Errore del server (${response.status}). Riprova più tardi.`);
+        return;
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        setVtoResultImage(data.imageUrl);
+      } else {
+        alert(data.error || "Errore durante la generazione del VTO.");
+      }
+    } catch (error) {
+      console.error("VTO Error:", error);
+      alert("Errore di connessione al server VTO.");
+    } finally {
+      setIsVtoProcessing(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <main className="flex-grow pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
+        <div className="animate-pulse flex flex-col md:flex-row gap-12 lg:gap-24">
+          <div className="w-full md:w-1/2 aspect-[3/4] bg-gray-200"></div>
+          <div className="w-full md:w-1/2 space-y-4">
+            <div className="h-4 bg-gray-200 w-1/4"></div>
+            <div className="h-10 bg-gray-200 w-3/4"></div>
+            <div className="h-6 bg-gray-200 w-1/4"></div>
+            <div className="h-24 bg-gray-200 w-full mt-8"></div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // Fallback for hardcoded products from the home page that don't exist in DB yet
+  const displayProduct = product || {
+    id: id || '1',
+    name: "The Miami Slip Dress",
+    price: 129.00,
+    category: "Dresses",
+    description: "The perfect slip dress that takes you from a sunset aperitivo on Lago di Garda to a glamorous night out in Miami. Crafted from premium silk-blend satin, it features a cowl neckline and an elegant open back.",
+    images: [
+      "https://picsum.photos/seed/miamidress/800/1067",
+      "https://picsum.photos/seed/miamidress2/800/1067",
+      "https://picsum.photos/seed/miamidress3/800/1067"
+    ],
+    sizes: ['XS', 'S', 'M', 'L', 'XL']
+  };
+
+  const availableSizes = displayProduct.sizes || ['XS', 'S', 'M', 'L', 'XL'];
+
+  return (
+    <main className="flex-grow pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+      <div className="flex flex-col md:flex-row gap-12 lg:gap-24">
+        
+        {/* Left: Images */}
+        <div className="w-full md:w-1/2 space-y-4">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6 }}
+            className="aspect-[3/4] bg-gray-100 overflow-hidden"
+          >
+            <img 
+              src={displayProduct.images[0]} 
+              alt={displayProduct.name} 
+              className="w-full h-full object-cover"
+              referrerPolicy="no-referrer"
+            />
+          </motion.div>
+          {displayProduct.images.length > 1 && (
+            <div className="grid grid-cols-2 gap-4">
+              {displayProduct.images.slice(1, 3).map((img, idx) => (
+                <div key={idx} className="aspect-[3/4] bg-gray-100 overflow-hidden">
+                  <img 
+                    src={img} 
+                    alt={`Detail ${idx + 1}`} 
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Right: Product Info */}
+        <div className="w-full md:w-1/2 md:sticky md:top-24 h-fit">
+          <div className="mb-8">
+            <p className="text-xs uppercase tracking-widest text-gray-500 mb-2">{displayProduct.category}</p>
+            <h1 className="text-3xl md:text-4xl font-serif mb-4">{displayProduct.name}</h1>
+            <p className="text-xl mb-4">€{displayProduct.price.toFixed(2)}</p>
+            <div className="flex items-center space-x-1 text-sm mb-6">
+              <div className="flex text-black">
+                <Star className="w-4 h-4 fill-current" />
+                <Star className="w-4 h-4 fill-current" />
+                <Star className="w-4 h-4 fill-current" />
+                <Star className="w-4 h-4 fill-current" />
+                <Star className="w-4 h-4 fill-current" />
+              </div>
+              <span className="text-gray-500 ml-2">(42 Reviews)</span>
+            </div>
+            <p className="text-gray-600 text-sm leading-relaxed">
+              {displayProduct.description}
+            </p>
+          </div>
+
+          {/* Size Selector */}
+          <div className="mb-8">
+            <div className="flex justify-between items-center mb-4">
+              <span className="text-sm font-medium uppercase tracking-wider">Size</span>
+              <button className="text-xs text-gray-500 underline hover:text-black transition-colors">Size Guide</button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {availableSizes.map((size: string) => (
+                <button
+                  key={size}
+                  onClick={() => setSelectedSize(size)}
+                  className={`py-3 px-6 text-sm transition-colors border ${
+                    selectedSize === size 
+                      ? 'border-brand-black bg-brand-black text-white' 
+                      : 'border-gray-200 hover:border-brand-black text-brand-black'
+                  }`}
+                >
+                  {size}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Add to Cart & VTO */}
+          <div className="space-y-3 mb-8">
+            <button className="w-full bg-brand-black text-white py-4 uppercase tracking-widest text-sm font-medium hover:bg-gray-900 transition-colors">
+              Add to Cart
+            </button>
+            
+            <button 
+              onClick={() => {
+                if (!user) {
+                  alert("Devi effettuare l'accesso per usare il Camerino Virtuale.");
+                  return;
+                }
+                setIsVtoModalOpen(true);
+              }}
+              className="w-full bg-white text-brand-black border border-brand-black py-4 uppercase tracking-widest text-sm font-medium hover:bg-gray-50 transition-colors flex items-center justify-center space-x-2"
+            >
+              <Camera className="w-4 h-4" />
+              <span>Camerino Virtuale (AI)</span>
+            </button>
+          </div>
+
+          {/* Accordions */}
+          <div className="border-t border-gray-200">
+            {/* Details */}
+            <div className="border-b border-gray-200">
+              <button 
+                onClick={() => toggleAccordion('details')}
+                className="w-full py-4 flex justify-between items-center text-sm uppercase tracking-wider font-medium"
+              >
+                Details & Care
+                {openAccordion === 'details' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+              {openAccordion === 'details' && (
+                <motion.div 
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  className="pb-4 text-sm text-gray-600 leading-relaxed"
+                >
+                  <ul className="list-disc pl-4 space-y-1">
+                    <li>95% Silk, 5% Elastane</li>
+                    <li>Cowl neckline</li>
+                    <li>Adjustable spaghetti straps</li>
+                    <li>Dry clean only</li>
+                    <li>Made in Italy</li>
+                  </ul>
+                </motion.div>
+              )}
+            </div>
+
+            {/* Shipping */}
+            <div className="border-b border-gray-200">
+              <button 
+                onClick={() => toggleAccordion('shipping')}
+                className="w-full py-4 flex justify-between items-center text-sm uppercase tracking-wider font-medium"
+              >
+                Shipping & Returns
+                {openAccordion === 'shipping' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+              {openAccordion === 'shipping' && (
+                <motion.div 
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  className="pb-4 text-sm text-gray-600 leading-relaxed"
+                >
+                  <p className="mb-2"><strong>Free standard shipping</strong> on all orders over €150.</p>
+                  <p>Returns are accepted within 14 days of delivery. Items must be unworn with all tags attached.</p>
+                </motion.div>
+              )}
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      {/* VTO Modal */}
+      <AnimatePresence>
+        {isVtoModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => !isVtoProcessing && setIsVtoModalOpen(false)} />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="relative bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-[0_20px_50px_rgba(0,0,0,0.3)] rounded-sm"
+            >
+              <button 
+                onClick={() => setIsVtoModalOpen(false)}
+                disabled={isVtoProcessing}
+                className="absolute top-6 right-6 z-10 text-gray-400 hover:text-brand-black disabled:opacity-50 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+
+              <div className="p-10 premium-gradient">
+                <div className="text-center mb-10">
+                  <h2 className="text-3xl md:text-4xl font-serif mb-3 tracking-tight">Camerino Virtuale <span className="italic">AI</span></h2>
+                  <div className="w-12 h-[1px] bg-brand-black mx-auto mb-4"></div>
+                  <p className="text-brand-gray-dark text-xs uppercase tracking-widest max-w-md mx-auto leading-relaxed">
+                    Personalized AI experience. full-body photo suggested for optimal results.
+                  </p>
+                </div>
+
+                {vtoResultImage ? (
+                  <div className="space-y-6">
+                    <div className="aspect-[3/4] max-w-sm mx-auto bg-gray-100 overflow-hidden">
+                      <img src={vtoResultImage} alt="VTO Result" className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex justify-center">
+                      <button 
+                        onClick={() => {
+                          setVtoResultImage(null);
+                          setVtoFile(null);
+                        }}
+                        className="text-sm underline underline-offset-4 text-gray-500 hover:text-brand-black"
+                      >
+                        Riprova con un'altra foto
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <form onSubmit={handleVtoSubmit} className="space-y-6">
+                    {/* File Upload */}
+                    <div>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        ref={fileInputRef}
+                        onChange={(e) => setVtoFile(e.target.files?.[0] || null)}
+                        className="hidden" 
+                        id="vto-upload"
+                      />
+                      <label 
+                        htmlFor="vto-upload" 
+                        className={`group flex flex-col items-center justify-center w-full aspect-video border-[1px] p-8 cursor-pointer transition-all duration-300 ${
+                          vtoFile ? 'border-brand-black bg-brand-gray-light' : 'border-gray-200 hover:border-brand-black bg-white'
+                        }`}
+                      >
+                        {vtoFile ? (
+                          <div className="text-center">
+                            <div className="w-12 h-12 bg-brand-black text-white rounded-full flex items-center justify-center mx-auto mb-4">
+                              <Camera className="w-6 h-6" />
+                            </div>
+                            <p className="text-sm font-semibold text-brand-black mb-1">Photo Uploaded</p>
+                            <p className="text-xs text-brand-gray-dark uppercase tracking-widest">{vtoFile.name}</p>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center space-y-4 text-brand-gray-dark group-hover:text-brand-black transition-colors">
+                            <Camera className="w-10 h-10 stroke-[1px]" />
+                            <div className="text-center">
+                              <p className="text-xs uppercase tracking-[0.2em] font-medium">Upload Selection</p>
+                              <p className="text-[10px] uppercase tracking-widest mt-2 opacity-60">Full-body shot recommended</p>
+                            </div>
+                          </div>
+                        )}
+                      </label>
+                    </div>
+
+                    {/* GDPR Consent */}
+                    <div className="flex items-start space-x-3 bg-gray-50 p-4 border border-gray-100">
+                      <input 
+                        type="checkbox" 
+                        id="vto-consent" 
+                        checked={vtoConsent}
+                        onChange={(e) => setVtoConsent(e.target.checked)}
+                        className="mt-1 w-4 h-4 text-brand-black border-gray-300 rounded focus:ring-brand-black"
+                      />
+                      <label htmlFor="vto-consent" className="text-xs text-gray-600 leading-relaxed">
+                        <strong>Privacy & GDPR:</strong> Acconsento al trattamento della mia immagine personale per la generazione del camerino virtuale. Le immagini vengono elaborate in modo sicuro sui server Google Cloud e non vengono salvate permanentemente.
+                      </label>
+                    </div>
+
+                    {/* Submit */}
+                    <button 
+                      type="submit" 
+                      disabled={!vtoFile || !vtoConsent || isVtoProcessing}
+                      className="w-full bg-brand-black text-white py-4 uppercase tracking-widest text-sm font-medium hover:bg-gray-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                    >
+                      {isVtoProcessing ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span>Elaborazione AI in corso...</span>
+                        </>
+                      ) : (
+                        <span>Genera Prova Virtuale</span>
+                      )}
+                    </button>
+                  </form>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </main>
+  );
+}
+
