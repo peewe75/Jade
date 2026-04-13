@@ -37,6 +37,8 @@ export default function Admin() {
   
   // Product Edit state
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
+  const [featured, setFeatured] = useState(false);
+  const [order, setOrder] = useState<number | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -162,6 +164,8 @@ export default function Admin() {
         description: description || 'Luxury fashion piece by The Blondes Brand.',
         tags: editingProduct ? (editingProduct.tags || ['New In']) : ['New In'],
         sizes: selectedSizes.length > 0 ? selectedSizes : ['One Size'],
+        featured,
+        featuredOrder: featured ? (order ?? Date.now()) : null,
         updatedAt: serverTimestamp(),
       };
 
@@ -202,8 +206,9 @@ export default function Admin() {
     setImageUrl(product.images?.[0] || '');
     setDescription(product.description || '');
     setSelectedSizes(product.sizes || []);
+    setFeatured(product.featured || false);
+    setOrder(product.featuredOrder ?? null);
     
-    // Scroll to form
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -214,6 +219,8 @@ export default function Admin() {
     setImageUrl('');
     setDescription('');
     setSelectedSizes([]);
+    setFeatured(false);
+    setOrder(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -430,6 +437,37 @@ export default function Admin() {
           {/* Add/Edit Product Form */}
           <div className="bg-gray-50 p-6 border border-gray-100">
             <h2 className="text-lg font-serif mb-6">{editingProduct ? 'Modifica Prodotto' : 'Aggiungi Prodotto'}</h2>
+            
+            {editingProduct && (
+              <div className="mb-4 p-3 bg-green-100 border border-green-400 text-green-800 text-sm">
+                ⚠️ Stai modificando: <strong>{editingProduct.name}</strong>
+              </div>
+            )}
+
+            <div className="mb-4 p-4 bg-yellow-100 border-4 border-yellow-500 rounded-lg">
+              <div className="flex items-center">
+                <input 
+                  type="checkbox" 
+                  id="featured"
+                  checked={featured}
+                  onChange={(e) => setFeatured(e.target.checked)}
+                  className="w-6 h-6 mr-3"
+                />
+                <label htmlFor="featured" className="text-base font-bold">MOSTRA IN HOME PAGE</label>
+              </div>
+              {featured && (
+                <div className="mt-3 ml-9">
+                  <input 
+                    type="number" 
+                    value={order ?? ''} 
+                    onChange={(e) => setOrder(e.target.value ? parseInt(e.target.value) : null)}
+                    className="w-full border-2 border-yellow-400 p-2"
+                    placeholder="Numero ordine (1 = primo)"
+                  />
+                </div>
+              )}
+            </div>
+
             <form onSubmit={handleAddProduct} className="space-y-4">
               <div>
                 <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Nome</label>
@@ -529,6 +567,9 @@ export default function Admin() {
                 <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Descrizione</label>
                 <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} className="w-full border border-gray-300 p-2 text-sm"></textarea>
               </div>
+
+              <hr className="border-gray-200 my-4" />
+
               <button type="submit" disabled={isUploading || categories.length === 0} className="w-full bg-brand-black text-white py-3 text-xs uppercase tracking-widest font-medium hover:bg-gray-900 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50">
                 {editingProduct ? <RefreshCw className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                 <span>{editingProduct ? 'Salva Modifiche' : 'Aggiungi Prodotto'}</span>
@@ -577,6 +618,11 @@ export default function Admin() {
                     <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">{product.category}</p>
                     <h3 className="text-sm font-medium mb-1">{product.name}</h3>
                     <p className="text-sm text-gray-600 mb-2">€{product.price}</p>
+                    {product.featured && (
+                      <span className="inline-block text-[10px] bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded mr-2">
+                        In evidenza #{product.featuredOrder || '?'}
+                      </span>
+                    )}
                     {product.sizes && (
                       <div className="flex flex-wrap gap-1">
                         {product.sizes.map((size: string) => (
@@ -587,18 +633,18 @@ export default function Admin() {
                       </div>
                     )}
                   </div>
-                  <div className="absolute top-4 right-4 flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex flex-col gap-1">
                     <button 
                       onClick={() => handleEdit(product)}
-                      className="text-gray-400 hover:text-brand-black"
+                      className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 px-2 py-1 border border-blue-200"
                     >
-                      <Edit2 className="w-4 h-4" />
+                      Modifica
                     </button>
                     <button 
                       onClick={() => handleDelete(product.id)}
-                      className="text-gray-400 hover:text-red-500"
+                      className="text-xs bg-red-50 hover:bg-red-100 text-red-700 px-2 py-1 border border-red-200"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      Elimina
                     </button>
                   </div>
                 </div>
