@@ -1,148 +1,18 @@
-rules_version = '2';
+rules_version='2'
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // ===============================================================
-    // Assumed Data Model
-    // ===============================================================
-    //
-    // Collection: products
-    // Document ID: auto-generated
-    // Fields:
-    //   - name: string (required, max 100 chars)
-    //   - price: number (required, positive)
-    //   - description: string (optional, max 2000 chars)
-    //   - images: list of strings (required, max 10 items, valid URLs)
-    //   - category: string (required, max 50 chars)
-    //   - tags: list of strings (optional, max 20 items, max 30 chars each)
-    //   - createdAt: timestamp (required, immutable)
-    //
-    // Collection: users
-    // Document ID: user uid
-    // Fields:
-    //   - uid: string (required, must match document ID)
-    //   - email: string (required, valid email)
-    //   - role: string (required, 'admin' or 'customer')
-    //   - createdAt: timestamp (required, immutable)
-    //
-    // Collection: subscribers
-    // Document ID: auto-generated
-    // Fields:
-    //   - email: string (required, valid email)
-    //   - subscribedAt: timestamp (required, immutable)
-    //
-    // ===============================================================
-
-    // ===============================================================
-    // Helper Functions
-    // ===============================================================
-    
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-    
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
-    
-    function isAdmin() {
-      return isAuthenticated() &&
-        (
-          (request.auth.token.email == "MMalinverno76@gmail.com" && request.auth.token.email_verified == true) ||
-          (request.auth.token.email == "mmalinverno76@gmail.com" && request.auth.token.email_verified == true) ||
-          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
-        );
-    }
-    
-    function isValidEmail(email) {
-      return email is string &&
-        email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
-    }
-    
-    function isValidUrl(url) {
-      return url is string &&
-        (url.matches("^https://.*") || url.matches("^http://.*"));
-    }
-    
-    function hasOnlyAllowedFields(fields) {
-      return request.resource.data.keys().hasOnly(fields);
-    }
-    
-    function areImmutableFieldsUnchanged(fields) {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
-    }
-
-    // ===============================================================
-    // Domain Validators
-    // ===============================================================
-
-    function isValidSubscriber(data) {
-      return hasOnlyAllowedFields(['email', 'subscribedAt']) &&
-             isValidEmail(data.email) &&
-             data.subscribedAt is timestamp;
-    }
-
-    function isValidUser(data, userId) {
-      return hasOnlyAllowedFields(['uid', 'email', 'role', 'createdAt']) &&
-             data.uid == userId &&
-             isValidEmail(data.email) &&
-             data.role in ['admin', 'customer'] &&
-             data.createdAt is timestamp;
-    }
-
-    function isValidProduct(data) {
-      return hasOnlyAllowedFields(['name', 'price', 'description', 'images', 'category', 'tags', 'sizes', 'createdAt']) &&
-             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
-             data.price is number && data.price >= 0 &&
-             (!('description' in data) || (data.description is string && data.description.size() <= 2000)) &&
-             data.images is list && data.images.size() > 0 && data.images.size() <= 10 &&
-             data.category is string && data.category.size() > 0 && data.category.size() <= 50 &&
-             (!('tags' in data) || (data.tags is list && data.tags.size() <= 20)) &&
-             (!('sizes' in data) || (data.sizes is list && data.sizes.size() <= 20)) &&
-             data.createdAt is timestamp;
-    }
-
-    // ===============================================================
-    // Rules
-    // ===============================================================
-
-    match /subscribers/{subscriberId} {
-      // Anyone can subscribe (create), but only admins can read/update/delete
-      allow read: if isAdmin();
-      allow create: if isValidSubscriber(request.resource.data);
-      allow update, delete: if isAdmin();
-    }
-
-    match /users/{userId} {
-      // Users can read their own profile, admins can read all
-      allow read: if isOwner(userId) || isAdmin();
-      
-      // Users can create their own profile (must be 'customer'), admins can create any
-      allow create: if isAuthenticated() && isValidUser(request.resource.data, userId) && 
-                    ((isOwner(userId) && request.resource.data.role == 'customer') || isAdmin());
-      
-      // Users can update their own profile (cannot change role or uid/createdAt), admins can update any
-      allow update: if isAuthenticated() && isValidUser(request.resource.data, userId) && 
-                    ((isOwner(userId) && request.resource.data.role == resource.data.role && areImmutableFieldsUnchanged(['uid', 'createdAt'])) || isAdmin());
-      
-      allow delete: if isAdmin();
-    }
-
-    match /categories/{categoryId} {
-      allow read: if true;
-      allow create, update, delete: if isAdmin();
-    }
-
-    match /products/{productId} {
-      // Anyone can read products
-      allow read: if true;
-      
-      // Only admins can modify products
-      allow create: if isAdmin() && isValidProduct(request.resource.data);
-      allow update: if isAdmin() && isValidProduct(request.resource.data) && areImmutableFieldsUnchanged(['createdAt']);
-      allow delete: if isAdmin();
+    match /{document=**} {
+      // This rule allows anyone with your database reference to view, edit,
+      // and delete all data in your database. It is useful for getting
+      // started, but it is configured to expire after 30 days because it
+      // leaves your app open to attackers. At that time, all client
+      // requests to your database will be denied.
+      //
+      // Make sure to write security rules for your app before that time, or
+      // else all client requests to your database will be denied until you
+      // update your rules.
+      allow read, write: if request.time < timestamp.date(2026, 5, 13);
     }
   }
 }
