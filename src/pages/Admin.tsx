@@ -26,7 +26,7 @@ export default function Admin() {
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [category, setCategory] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
+  const [productImages, setProductImages] = useState<string[]>(['', '', '', '']);
   const [description, setDescription] = useState('');
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   
@@ -40,7 +40,6 @@ export default function Admin() {
   const [featured, setFeatured] = useState(false);
   const [order, setOrder] = useState<number | null>(null);
   
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const isAdminUser = Boolean(user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase()));
 
   useEffect(() => {
@@ -120,6 +119,22 @@ export default function Admin() {
     });
   };
 
+  const updateProductImage = (slotIndex: number, value: string) => {
+    setProductImages(previousImages => previousImages.map((image, index) => (index === slotIndex ? value : image)));
+  };
+
+  const resetProductForm = () => {
+    setName('');
+    setPrice('');
+    setCategory('');
+    setProductImages(['', '', '', '']);
+    setDescription('');
+    setSelectedSizes([]);
+    setFeatured(false);
+    setOrder(null);
+    setEditingProduct(null);
+  };
+
   // --- Category Management ---
   const handleAddCategory = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -170,19 +185,20 @@ export default function Admin() {
   };
 
   // --- Product Management ---
-  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>, slotIndex: number) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsUploading(true);
     try {
       const optimizedDataUrl = await fileToDataUrl(file);
-      setImageUrl(optimizedDataUrl);
+      updateProductImage(slotIndex, optimizedDataUrl);
     } catch (error) {
       console.error("Error uploading file:", error);
       alert("Errore durante il caricamento dell'immagine.");
     } finally {
       setIsUploading(false);
+      e.target.value = '';
     }
   };
 
@@ -198,8 +214,9 @@ export default function Admin() {
       alert("Devi essere loggato con un account amministratore.");
       return;
     }
-    if (!name || !price || !imageUrl || !category) {
-      alert("Compila tutti i campi obbligatori, inclusa la categoria.");
+    const images = productImages.filter((image): image is string => Boolean(image));
+    if (!name || !price || images.length === 0 || !category) {
+      alert("Compila i campi obbligatori: nome, prezzo, categoria e almeno la copertina.");
       return;
     }
 
@@ -208,7 +225,7 @@ export default function Admin() {
         name,
         price: parseFloat(price),
         category,
-        images: [imageUrl],
+        images: images.slice(0, 4),
         description: description || 'Luxury fashion piece by The Blondes Brand.',
         tags: editingProduct ? (editingProduct.tags || ['New In']) : ['New In'],
         sizes: selectedSizes.length > 0 ? selectedSizes : ['One Size'],
@@ -222,7 +239,6 @@ export default function Admin() {
       if (editingProduct) {
         // Update existing product
         await updateDoc(doc(db, 'products', editingProduct.id), productData);
-        setEditingProduct(null);
       } else {
         // Add new product
         await addDoc(collection(db, 'products'), {
@@ -232,14 +248,7 @@ export default function Admin() {
       }
       
       // Reset form
-      setName('');
-      setPrice('');
-      setImageUrl('');
-      setDescription('');
-      setSelectedSizes([]);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      resetProductForm();
       
       fetchData();
     } catch (error) {
@@ -254,7 +263,13 @@ export default function Admin() {
     setName(product.name);
     setPrice(product.price.toString());
     setCategory(product.category);
-    setImageUrl(product.images?.[0] || '');
+    setProductImages([
+      ...(Array.isArray(product.images) ? product.images.slice(0, 4) : []),
+      '',
+      '',
+      '',
+      '',
+    ].slice(0, 4));
     setDescription(product.description || '');
     setSelectedSizes(product.sizes || []);
     setFeatured(product.featured || false);
@@ -264,17 +279,7 @@ export default function Admin() {
   };
 
   const cancelEdit = () => {
-    setEditingProduct(null);
-    setName('');
-    setPrice('');
-    setImageUrl('');
-    setDescription('');
-    setSelectedSizes([]);
-    setFeatured(false);
-    setOrder(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    resetProductForm();
   };
 
   const [productToDelete, setProductToDelete] = useState<string | null>(null);
@@ -575,58 +580,65 @@ export default function Admin() {
               </div>
               
               <div>
-                <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Immagine Prodotto</label>
-                
-                {/* File Upload Option */}
-                <div className="mb-3">
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    onChange={handleFileUpload} 
-                    ref={fileInputRef}
-                    className="hidden" 
-                    id="image-upload"
-                  />
-                  <label 
-                    htmlFor="image-upload" 
-                    className="flex items-center justify-center w-full border-2 border-dashed border-gray-300 p-4 cursor-pointer hover:bg-gray-100 transition-colors"
-                  >
-                    {isUploading ? (
-                      <div className="flex items-center space-x-2 text-gray-500">
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span className="text-sm">Caricamento...</span>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center space-y-2 text-gray-500">
-                        <Upload className="w-5 h-5" />
-                        <span className="text-sm">Carica dal tuo dispositivo</span>
-                      </div>
-                    )}
-                  </label>
-                </div>
+                <label className="block text-xs uppercase tracking-widest text-gray-500 mb-2">Foto Prodotto</label>
+                <p className="text-xs text-gray-400 mb-4">Carica fino a 4 foto: la prima è la copertina, le altre compaiono solo nel dettaglio prodotto.</p>
 
-                <div className="flex items-center space-x-2 mb-3">
-                  <div className="h-px bg-gray-300 flex-1"></div>
-                  <span className="text-xs text-gray-400 uppercase tracking-widest">Oppure</span>
-                  <div className="h-px bg-gray-300 flex-1"></div>
-                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {productImages.map((image, index) => (
+                    <div key={index} className="border border-dashed border-gray-300 bg-white p-3">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-[10px] uppercase tracking-widest text-gray-500">
+                          {index === 0 ? 'Copertina' : `Foto ${index + 1}`}
+                        </span>
+                        <span className="text-[10px] uppercase tracking-widest text-gray-400">
+                          {index === 0 ? 'Obbligatoria' : 'Facoltativa'}
+                        </span>
+                      </div>
 
-                {/* URL Option */}
-                <input 
-                  type="url" 
-                  value={imageUrl} 
-                  onChange={e => setImageUrl(e.target.value)} 
-                  required={!imageUrl} 
-                  className="w-full border border-gray-300 p-2 text-sm" 
-                  placeholder="Inserisci URL immagine (https://...)" 
-                />
-                
-                {/* Image Preview */}
-                {imageUrl && (
-                  <div className="mt-3 relative aspect-[3/4] w-24 bg-gray-100 border border-gray-200">
-                    <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                  </div>
-                )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        id={`image-upload-${index}`}
+                        onChange={(event) => handleFileUpload(event, index)}
+                      />
+
+                      <label
+                        htmlFor={`image-upload-${index}`}
+                        className={`flex items-center justify-center w-full aspect-[3/4] cursor-pointer transition-colors ${
+                          image ? 'bg-gray-50 border border-gray-200' : 'border-2 border-dashed border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {isUploading ? (
+                          <div className="flex items-center space-x-2 text-gray-500">
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            <span className="text-sm">Caricamento...</span>
+                          </div>
+                        ) : image ? (
+                          <div className="relative w-full h-full">
+                            <img src={image} alt={`Foto ${index + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                updateProductImage(index, '');
+                              }}
+                              className="absolute top-2 right-2 bg-black/70 text-white text-[10px] uppercase tracking-widest px-2 py-1"
+                            >
+                              Rimuovi
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center space-y-2 text-gray-500">
+                            <Upload className="w-5 h-5" />
+                            <span className="text-sm">Carica foto</span>
+                          </div>
+                        )}
+                      </label>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div>

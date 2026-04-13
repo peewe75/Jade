@@ -51,6 +51,10 @@ export default function Product() {
     fetchProduct();
   }, [id]);
 
+  useEffect(() => {
+    setSelectedImage(0);
+  }, [id]);
+
   const toggleAccordion = (id: string) => {
     setOpenAccordion(openAccordion === id ? null : id);
   };
@@ -126,6 +130,10 @@ export default function Product() {
     sizes: ['XS', 'S', 'M', 'L', 'XL']
   };
 
+  const displayImages = displayProduct.images.filter(Boolean);
+  const heroImage = displayImages[selectedImage] || displayImages[0];
+  const galleryImages = displayImages.length > 0 ? displayImages : [displayProduct.images[0]];
+
   const availableSizes = displayProduct.sizes || ['XS', 'S', 'M', 'L', 'XL'];
 
   return (
@@ -141,23 +149,30 @@ export default function Product() {
             className="aspect-[3/4] bg-gray-100 overflow-hidden"
           >
             <img 
-              src={displayProduct.images[0]} 
+              src={heroImage} 
               alt={displayProduct.name} 
               className="w-full h-full object-cover"
               referrerPolicy="no-referrer"
             />
           </motion.div>
-          {displayProduct.images.length > 1 && (
-            <div className="grid grid-cols-2 gap-4">
-              {displayProduct.images.slice(1, 3).map((img, idx) => (
-                <div key={idx} className="aspect-[3/4] bg-gray-100 overflow-hidden">
+          {galleryImages.length > 1 && (
+            <div className="grid grid-cols-4 gap-3">
+              {galleryImages.map((img, index) => (
+                <button
+                  key={`${img}-${index}`}
+                  type="button"
+                  onClick={() => setSelectedImage(index)}
+                  className={`aspect-[3/4] overflow-hidden bg-gray-100 border transition-all ${
+                    selectedImage === index ? 'border-brand-black ring-1 ring-brand-black' : 'border-transparent'
+                  }`}
+                >
                   <img 
                     src={img} 
-                    alt={`Detail ${idx + 1}`} 
+                    alt={`Detail ${index + 1}`} 
                     className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
                   />
-                </div>
+                </button>
               ))}
             </div>
           )}
