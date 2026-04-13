@@ -6,7 +6,7 @@ service cloud.firestore {
     // ===============================================================
     // Assumed Data Model
     // ===============================================================
-    // Collection: products, users, subscribers, categories
+    // Collection: products, users, subscribers, categories, clients
 
     // ===============================================================
     // Helper Functions
@@ -76,6 +76,21 @@ service cloud.firestore {
              data.createdAt is timestamp;
     }
 
+    function isValidClient(data) {
+      return hasOnlyAllowedFields(['uid', 'name', 'email', 'phone', 'company', 'source', 'status', 'notes', 'createdAt', 'updatedAt', 'photoURL']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             (!('uid' in data) || (data.uid is string && data.uid.size() > 0)) &&
+             (!('email' in data) || isValidEmail(data.email)) &&
+             (!('phone' in data) || (data.phone is string && data.phone.size() <= 30)) &&
+             (!('company' in data) || (data.company is string && data.company.size() <= 100)) &&
+             (!('source' in data) || (data.source is string && data.source.size() <= 50)) &&
+             data.status in ['lead', 'active', 'vip', 'inactive'] &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 4000)) &&
+             (!('photoURL' in data) || data.photoURL == null || data.photoURL is string) &&
+             (!('createdAt' in data) || data.createdAt is timestamp) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
@@ -98,6 +113,13 @@ service cloud.firestore {
     match /categories/{categoryId} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
+    }
+
+    match /clients/{clientId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated() && isValidClient(request.resource.data) &&
+                    (!('uid' in request.resource.data) || request.resource.data.uid == request.auth.uid);
+      allow update, delete: if isAdmin();
     }
 
     match /products/{productId} {

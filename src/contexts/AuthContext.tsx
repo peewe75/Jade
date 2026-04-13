@@ -49,6 +49,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Force upgrade to admin if they logged in before the admin logic was added
         await setDoc(userRef, { role: 'admin' }, { merge: true });
       }
+
+      const clientRef = doc(db, 'clients', loggedInUser.uid);
+      const clientSnap = await getDoc(clientRef);
+      if (!clientSnap.exists()) {
+        await setDoc(clientRef, {
+          uid: loggedInUser.uid,
+          name: loggedInUser.displayName || loggedInUser.email?.split('@')[0] || 'Cliente',
+          email: loggedInUser.email,
+          photoURL: loggedInUser.photoURL || null,
+          status: 'active',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+      }
     } catch (error) {
       console.error("Error signing in with Google", error);
       throw error;

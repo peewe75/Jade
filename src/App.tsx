@@ -13,6 +13,8 @@ import About from './pages/About';
 import Login from './pages/Login';
 import Shop from './pages/Shop';
 import Admin from './pages/Admin';
+import CRM from './pages/CRM';
+import Inventory from './pages/Inventory';
 
 export default function App() {
   return (
@@ -27,6 +29,8 @@ export default function App() {
             <Route path="/about" element={<About />} />
             <Route path="/login" element={<Login />} />
             <Route path="/admin" element={<Admin />} />
+            <Route path="/admin/crm" element={<CRM />} />
+            <Route path="/admin/inventory" element={<Inventory />} />
           </Routes>
           <Footer />
         </div>
@@ -34,7 +38,6 @@ export default function App() {
     </AuthProvider>
   );
 }
-
 
 
 
