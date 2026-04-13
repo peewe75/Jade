@@ -35,6 +35,9 @@ export default function Admin() {
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [editCategoryName, setEditCategoryName] = useState('');
   
+  // Product Edit state
+  const [editingProduct, setEditingProduct] = useState<any | null>(null);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -151,16 +154,28 @@ export default function Admin() {
     }
 
     try {
-      await addDoc(collection(db, 'products'), {
+      const productData = {
         name,
         price: parseFloat(price),
         category,
         images: [imageUrl],
         description: description || 'Luxury fashion piece by The Blondes Brand.',
-        tags: ['New In'],
+        tags: editingProduct ? (editingProduct.tags || ['New In']) : ['New In'],
         sizes: selectedSizes.length > 0 ? selectedSizes : ['One Size'],
-        createdAt: serverTimestamp()
-      });
+        updatedAt: serverTimestamp(),
+      };
+
+      if (editingProduct) {
+        // Update existing product
+        await updateDoc(doc(db, 'products', editingProduct.id), productData);
+        setEditingProduct(null);
+      } else {
+        // Add new product
+        await addDoc(collection(db, 'products'), {
+          ...productData,
+          createdAt: serverTimestamp()
+        });
+      }
       
       // Reset form
       setName('');
@@ -174,8 +189,33 @@ export default function Admin() {
       
       fetchData();
     } catch (error) {
-      console.error("Error adding product:", error);
-      alert("Errore durante l'aggiunta del prodotto. Assicurati di essere loggato con l'email amministratore.");
+      console.error("Error saving product:", error);
+      alert("Errore durante il salvataggio del prodotto. Assicurati di essere loggato con l'email amministratore.");
+    }
+  };
+
+  const handleEdit = (product: any) => {
+    setEditingProduct(product);
+    setName(product.name);
+    setPrice(product.price.toString());
+    setCategory(product.category);
+    setImageUrl(product.images?.[0] || '');
+    setDescription(product.description || '');
+    setSelectedSizes(product.sizes || []);
+    
+    // Scroll to form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelEdit = () => {
+    setEditingProduct(null);
+    setName('');
+    setPrice('');
+    setImageUrl('');
+    setDescription('');
+    setSelectedSizes([]);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -387,9 +427,9 @@ export default function Admin() {
             </form>
           </div>
 
-          {/* Add Product Form */}
+          {/* Add/Edit Product Form */}
           <div className="bg-gray-50 p-6 border border-gray-100">
-            <h2 className="text-lg font-serif mb-6">Aggiungi Prodotto</h2>
+            <h2 className="text-lg font-serif mb-6">{editingProduct ? 'Modifica Prodotto' : 'Aggiungi Prodotto'}</h2>
             <form onSubmit={handleAddProduct} className="space-y-4">
               <div>
                 <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Nome</label>
@@ -490,9 +530,19 @@ export default function Admin() {
                 <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} className="w-full border border-gray-300 p-2 text-sm"></textarea>
               </div>
               <button type="submit" disabled={isUploading || categories.length === 0} className="w-full bg-brand-black text-white py-3 text-xs uppercase tracking-widest font-medium hover:bg-gray-900 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50">
-                <Plus className="w-4 h-4" />
-                <span>Aggiungi Prodotto</span>
+                {editingProduct ? <RefreshCw className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                <span>{editingProduct ? 'Salva Modifiche' : 'Aggiungi Prodotto'}</span>
               </button>
+
+              {editingProduct && (
+                <button 
+                  type="button" 
+                  onClick={cancelEdit}
+                  className="w-full bg-white text-gray-500 py-3 text-xs uppercase tracking-widest font-medium border border-gray-200 hover:text-brand-black hover:border-brand-black transition-colors"
+                >
+                  Annulla Modifica
+                </button>
+              )}
             </form>
           </div>
         </div>
@@ -537,12 +587,20 @@ export default function Admin() {
                       </div>
                     )}
                   </div>
-                  <button 
-                    onClick={() => handleDelete(product.id)}
-                    className="absolute top-4 right-4 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="absolute top-4 right-4 flex space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button 
+                      onClick={() => handleEdit(product)}
+                      className="text-gray-400 hover:text-brand-black"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(product.id)}
+                      className="text-gray-400 hover:text-red-500"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
