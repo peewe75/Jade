@@ -2,12 +2,12 @@ import { useState, useEffect, useRef, type ChangeEvent, type FormEvent } from 'r
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { collection, addDoc, serverTimestamp, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '../firebase';
+import { db } from '../firebase';
 import { motion } from 'motion/react';
 import { Trash2, Plus, RefreshCw, Upload, Image as ImageIcon, Edit2, X, Check, Search } from 'lucide-react';
 
 const AVAILABLE_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'One Size'];
+const ADMIN_EMAILS = ['mmalinverno76@gmail.com', 'peewe75@gmail.com', 'mmalinverno@gmail.com'];
 
 export default function Admin() {
   const { user, loading: authLoading } = useAuth();
@@ -41,6 +41,7 @@ export default function Admin() {
   const [order, setOrder] = useState<number | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isAdminUser = Boolean(user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase()));
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -48,7 +49,14 @@ export default function Admin() {
     }
   }, [user, authLoading, navigate]);
 
+  useEffect(() => {
+    if (!authLoading && user && !isAdminUser) {
+      navigate('/');
+    }
+  }, [authLoading, isAdminUser, navigate, user]);
+
   const fetchData = async () => {
+    if (!isAdminUser) return;
     setLoading(true);
     try {
       // Fetch Products
@@ -72,14 +80,50 @@ export default function Admin() {
   };
 
   useEffect(() => {
-    if (user) {
+    if (user && isAdminUser) {
       fetchData();
     }
-  }, [user]);
+  }, [user, isAdminUser]);
+
+  const fileToDataUrl = (file: File) => {
+    return new Promise<string>((resolve, reject) => {
+      const image = new Image();
+      const objectUrl = URL.createObjectURL(file);
+
+      image.onload = () => {
+        const maxDimension = 1400;
+        const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+
+        const context = canvas.getContext('2d');
+        if (!context) {
+          URL.revokeObjectURL(objectUrl);
+          reject(new Error('Unable to process image.'));
+          return;
+        }
+
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        const mimeType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+        const dataUrl = canvas.toDataURL(mimeType, mimeType === 'image/jpeg' ? 0.85 : undefined);
+        URL.revokeObjectURL(objectUrl);
+        resolve(dataUrl);
+      };
+
+      image.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error('Unable to load image.'));
+      };
+
+      image.src = objectUrl;
+    });
+  };
 
   // --- Category Management ---
   const handleAddCategory = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!isAdminUser) return;
     if (!newCategory.trim()) return;
     try {
       await addDoc(collection(db, 'categories'), {
@@ -94,6 +138,7 @@ export default function Admin() {
   };
 
   const handleDeleteCategory = async (id: string) => {
+    if (!isAdminUser) return;
     if (window.confirm('Sei sicuro di voler eliminare questa categoria?')) {
       try {
         await deleteDoc(doc(db, 'categories', id));
@@ -110,6 +155,7 @@ export default function Admin() {
   };
 
   const saveEditCategory = async () => {
+    if (!isAdminUser) return;
     if (!editingCategory || !editCategoryName.trim()) return;
     try {
       await updateDoc(doc(db, 'categories', editingCategory), {
@@ -130,10 +176,8 @@ export default function Admin() {
 
     setIsUploading(true);
     try {
-      const storageRef = ref(storage, `products/${Date.now()}_${file.name}`);
-      const snapshot = await uploadBytes(storageRef, file);
-      const downloadURL = await getDownloadURL(snapshot.ref);
-      setImageUrl(downloadURL);
+      const optimizedDataUrl = await fileToDataUrl(file);
+      setImageUrl(optimizedDataUrl);
     } catch (error) {
       console.error("Error uploading file:", error);
       alert("Errore durante il caricamento dell'immagine.");
@@ -150,6 +194,10 @@ export default function Admin() {
 
   const handleAddProduct = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!isAdminUser) {
+      alert("Devi essere loggato con un account amministratore.");
+      return;
+    }
     if (!name || !price || !imageUrl || !category) {
       alert("Compila tutti i campi obbligatori, inclusa la categoria.");
       return;
@@ -201,6 +249,7 @@ export default function Admin() {
   };
 
   const handleEdit = (product: any) => {
+    if (!isAdminUser) return;
     setEditingProduct(product);
     setName(product.name);
     setPrice(product.price.toString());
@@ -231,10 +280,12 @@ export default function Admin() {
   const [productToDelete, setProductToDelete] = useState<string | null>(null);
 
   const handleDelete = async (id: string) => {
+    if (!isAdminUser) return;
     setProductToDelete(id);
   };
 
   const confirmDelete = async () => {
+    if (!isAdminUser) return;
     if (!productToDelete) return;
     try {
       await deleteDoc(doc(db, 'products', productToDelete));
@@ -251,6 +302,7 @@ export default function Admin() {
   };
 
   const seedDatabase = async () => {
+    if (!isAdminUser) return;
     setIsSeeding(true);
     
     // Default categories
@@ -332,6 +384,18 @@ export default function Admin() {
 
   if (authLoading) return <div className="pt-32 text-center">Loading...</div>;
   if (!user) return null;
+  if (!isAdminUser) {
+    return (
+      <main className="flex-grow pt-32 px-4 sm:px-6 lg:px-8 max-w-3xl mx-auto w-full">
+        <div className="bg-white border border-gray-200 p-8 text-center">
+          <h1 className="text-3xl font-serif mb-3">Accesso non autorizzato</h1>
+          <p className="text-gray-600">
+            Questa dashboard è riservata agli account amministratore.
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   // Filter products based on search and category
   const filteredProducts = products.filter(product => {

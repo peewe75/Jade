@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { GripVertical } from 'lucide-react';
 
@@ -11,6 +11,17 @@ interface Product {
   price: number;
   images: string[];
   tags?: string[];
+  featuredOrder?: number;
+}
+
+interface FeaturedProductRecord {
+  id: string;
+  name?: string;
+  price?: number | string;
+  images?: string[];
+  image?: string;
+  tags?: string[];
+  featured?: boolean;
   featuredOrder?: number;
 }
 
@@ -50,23 +61,32 @@ export default function FeaturedProducts() {
   useEffect(() => {
     const fetchFeaturedProducts = async () => {
       try {
-        const q = query(
-          collection(db, 'products'),
-          where('featured', '==', true),
-          orderBy('featuredOrder', 'asc')
-        );
-        
-        const snapshot = await getDocs(q);
-        
-        if (snapshot.empty) {
-          setProducts([]);
-        } else {
-          const fetchedProducts = snapshot.docs.map(doc => ({
+        const snapshot = await getDocs(collection(db, 'products'));
+        const featuredProducts = snapshot.docs
+          .map(doc => ({
             id: doc.id,
             ...doc.data()
-          })) as Product[];
-          setProducts(fetchedProducts);
-        }
+          })) as FeaturedProductRecord[];
+
+        const sortedFeaturedProducts = featuredProducts
+          .filter((product): product is FeaturedProductRecord & { name: string; featured: true } => {
+            return product.featured === true && typeof product.name === 'string';
+          })
+          .sort((left, right) => {
+            const leftOrder = typeof left.featuredOrder === 'number' ? left.featuredOrder : Number.MAX_SAFE_INTEGER;
+            const rightOrder = typeof right.featuredOrder === 'number' ? right.featuredOrder : Number.MAX_SAFE_INTEGER;
+            return leftOrder - rightOrder || left.name.localeCompare(right.name);
+          })
+          .map((product) => ({
+            id: product.id,
+            name: product.name,
+            price: typeof product.price === 'number' ? product.price : Number(product.price ?? 0),
+            images: Array.isArray(product.images) ? product.images : (product.image ? [product.image] : []),
+            tags: product.tags,
+            featuredOrder: product.featuredOrder,
+          }));
+
+        setProducts(sortedFeaturedProducts);
       } catch (error) {
         console.error('Error fetching featured products:', error);
       } finally {
