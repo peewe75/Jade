@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { collection, addDoc, deleteDoc, doc, getDocs, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
-import { Search, Plus, RefreshCw, Users, Pencil, Trash2, Mail, Phone, Building2, BadgeCheck } from 'lucide-react';
+import { Search, Plus, RefreshCw, Users, Pencil, Trash2, Mail, Phone, Building2, BadgeCheck, Home, Package } from 'lucide-react';
 
 type ClientStatus = 'lead' | 'active' | 'vip' | 'inactive';
 
@@ -196,8 +196,13 @@ export default function CRM() {
         </div>
 
         <div className="flex gap-3">
-          <Link to="/admin" className="border border-gray-200 px-4 py-2 text-xs uppercase tracking-widest hover:border-brand-black transition-colors">
+          <Link to="/admin" className="border border-gray-200 px-4 py-2 text-xs uppercase tracking-widest hover:border-brand-black transition-colors flex items-center gap-2">
+            <Home className="w-4 h-4" />
             Dashboard
+          </Link>
+          <Link to="/admin/inventory" className="border border-gray-200 px-4 py-2 text-xs uppercase tracking-widest hover:border-brand-black transition-colors flex items-center gap-2">
+            <Package className="w-4 h-4" />
+            Magazzino
           </Link>
           <button
             onClick={fetchClients}

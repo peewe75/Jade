@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { collection, addDoc, serverTimestamp, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { motion } from 'motion/react';
-import { Trash2, Plus, RefreshCw, Upload, Image as ImageIcon, Edit2, X, Check, Search } from 'lucide-react';
+import { Trash2, Plus, RefreshCw, Upload, Image as ImageIcon, Edit2, X, Check, Search, Home, Users, LayoutGrid } from 'lucide-react';
 
 const AVAILABLE_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'One Size'];
 const ADMIN_EMAILS = ['mmalinverno76@gmail.com', 'peewe75@gmail.com', 'mmalinverno@gmail.com'];
@@ -448,6 +448,24 @@ export default function Inventory() {
         <div>
           <h1 className="text-3xl font-serif mb-2">Magazzino</h1>
           <p className="text-gray-500 text-sm">Gestisci i prodotti, le categorie e le immagini del catalogo.</p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <a href="/admin" className="border border-gray-200 px-4 py-2 text-xs uppercase tracking-widest hover:border-brand-black transition-colors flex items-center gap-2">
+              <Home className="w-4 h-4" />
+              Dashboard
+            </a>
+            <a href="/admin/crm" className="border border-gray-200 px-4 py-2 text-xs uppercase tracking-widest hover:border-brand-black transition-colors flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              CRM
+            </a>
+            <a href="#products" className="border border-gray-200 px-4 py-2 text-xs uppercase tracking-widest hover:border-brand-black transition-colors flex items-center gap-2">
+              <LayoutGrid className="w-4 h-4" />
+              Prodotti
+            </a>
+            <a href="#categories" className="border border-gray-200 px-4 py-2 text-xs uppercase tracking-widest hover:border-brand-black transition-colors flex items-center gap-2">
+              <LayoutGrid className="w-4 h-4" />
+              Categorie
+            </a>
+          </div>
         </div>
         
         {/* Search & Filter */}
@@ -489,7 +507,7 @@ export default function Inventory() {
         <div className="lg:col-span-1 space-y-8">
           
           {/* Manage Categories Form */}
-          <div className="bg-gray-50 p-6 border border-gray-100">
+          <div id="categories" className="bg-gray-50 p-6 border border-gray-100 scroll-mt-32">
             <h2 className="text-lg font-serif mb-6">Gestione Categorie</h2>
             
             {/* List Categories */}
@@ -538,7 +556,7 @@ export default function Inventory() {
           </div>
 
           {/* Add/Edit Product Form */}
-          <div className="bg-gray-50 p-6 border border-gray-100">
+          <div id="products" className="bg-gray-50 p-6 border border-gray-100 scroll-mt-32">
             <h2 className="text-lg font-serif mb-6">{editingProduct ? 'Modifica Prodotto' : 'Aggiungi Prodotto'}</h2>
             
             {editingProduct && (
