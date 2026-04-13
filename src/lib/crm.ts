@@ -238,3 +238,104 @@ export function convertTimestamp(ts: unknown): Date | undefined {
   if (typeof ts === 'number') return new Date(ts);
   return undefined;
 }
+
+export interface UserRecord {
+  id: string;
+  uid: string;
+  email: string;
+  role: string;
+  createdAt?: Date;
+}
+
+export async function getAllUsers(): Promise<UserRecord[]> {
+  const snapshot = await getDocs(query(collection(db, 'users'), orderBy('email')));
+  return snapshot.docs.map((d) => ({
+    id: d.id,
+    ...d.data(),
+  } as UserRecord));
+}
+
+export async function getAdminUsers(): Promise<UserRecord[]> {
+  const snapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'admin'), orderBy('email')));
+  return snapshot.docs.map((d) => ({
+    id: d.id,
+    ...d.data(),
+  } as UserRecord));
+}
+
+export async function getUserById(userId: string): Promise<UserRecord | null> {
+  const docSnap = await getDoc(doc(db, 'users', userId));
+  if (!docSnap.exists()) return null;
+  return { id: docSnap.id, ...docSnap.data() } as UserRecord;
+}
+
+export async function updateClientOwner(clientId: string, ownerId: string | null, adminUserId: string): Promise<void> {
+  const client = await getClient(clientId);
+  if (!client) return;
+  
+  await updateDoc(doc(db, 'clients', clientId), {
+    ownerId: ownerId,
+    updatedAt: serverTimestamp(),
+  });
+  
+  await createActivity(
+    clientId,
+    'profile_updated',
+    ownerId ? `Assegnato a owner` : 'Rimosso owner',
+    adminUserId,
+    undefined,
+    { field: 'ownerId', oldValue: client.ownerId, newValue: ownerId }
+  );
+}
+
+export async function updateClientTags(clientId: string, tags: string[], adminUserId: string): Promise<void> {
+  const client = await getClient(clientId);
+  if (!client) return;
+  
+  await updateDoc(doc(db, 'clients', clientId), {
+    tags: tags,
+    updatedAt: serverTimestamp(),
+  });
+  
+  await createActivity(
+    clientId,
+    'profile_updated',
+    `Tag aggiornati`,
+    adminUserId,
+    undefined,
+    { field: 'tags', oldValue: client.tags, newValue: tags }
+  );
+}
+
+export async function updateTaskAssignee(taskId: string, assignedTo: string | null): Promise<void> {
+  await updateDoc(doc(db, 'clientTasks', taskId), {
+    assignedTo: assignedTo,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export function getTodayStart(): Date {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  return now;
+}
+
+export function getTodayEnd(): Date {
+  const now = new Date();
+  now.setHours(23, 59, 59, 999);
+  return now;
+}
+
+export function isOverdue(client: Client): boolean {
+  if (client.stage === 'inactive') return false;
+  if (!client.nextFollowUpAt) return false;
+  return client.nextFollowUpAt < getTodayStart();
+}
+
+export function isDueToday(client: Client): boolean {
+  if (!client.nextFollowUpAt) return false;
+  const today = getTodayStart();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return client.nextFollowUpAt >= today && client.nextFollowUpAt < tomorrow;
+}

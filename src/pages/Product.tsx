@@ -31,6 +31,7 @@ export default function Product() {
   const [vtoConsent, setVtoConsent] = useState(false);
   const [isVtoProcessing, setIsVtoProcessing] = useState(false);
   const [vtoResultImage, setVtoResultImage] = useState<string | null>(null);
+  const [vtoPreviewImage, setVtoPreviewImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -54,6 +55,20 @@ export default function Product() {
   useEffect(() => {
     setSelectedImage(0);
   }, [id]);
+
+  useEffect(() => {
+    if (!vtoFile) {
+      setVtoPreviewImage(null);
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(vtoFile);
+    setVtoPreviewImage(previewUrl);
+
+    return () => {
+      URL.revokeObjectURL(previewUrl);
+    };
+  }, [vtoFile]);
 
   const toggleAccordion = (id: string) => {
     setOpenAccordion(openAccordion === id ? null : id);
@@ -363,12 +378,22 @@ export default function Product() {
                         }`}
                       >
                         {vtoFile ? (
-                          <div className="text-center">
-                            <div className="w-12 h-12 bg-brand-black text-white rounded-full flex items-center justify-center mx-auto mb-4">
-                              <Camera className="w-6 h-6" />
+                          <div className="relative w-full h-full">
+                            {vtoPreviewImage && (
+                              <img
+                                src={vtoPreviewImage}
+                                alt="Anteprima foto caricata"
+                                className="absolute inset-0 w-full h-full object-cover"
+                              />
+                            )}
+                            <div className="absolute inset-0 bg-black/20" />
+                            <div className="relative z-10 h-full flex flex-col items-center justify-center text-center text-white px-4">
+                              <div className="w-12 h-12 bg-black/70 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <Camera className="w-6 h-6" />
+                              </div>
+                              <p className="text-sm font-semibold mb-1">Photo Uploaded</p>
+                              <p className="text-xs uppercase tracking-widest break-all">{vtoFile.name}</p>
                             </div>
-                            <p className="text-sm font-semibold text-brand-black mb-1">Photo Uploaded</p>
-                            <p className="text-xs text-brand-gray-dark uppercase tracking-widest">{vtoFile.name}</p>
                           </div>
                         ) : (
                           <div className="flex flex-col items-center space-y-4 text-brand-gray-dark group-hover:text-brand-black transition-colors">

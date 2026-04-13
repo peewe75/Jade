@@ -3,10 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { collection, addDoc, deleteDoc, doc, getDocs, serverTimestamp, updateDoc, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
-import { Search, Plus, RefreshCw, Users, Pencil, Trash2, Mail, Phone, Building2, BadgeCheck, Home, Package, UserRoundCheck, CheckCircle2, Circle, FileText, X, Activity } from 'lucide-react';
+import { Search, Plus, RefreshCw, Users, Pencil, Trash2, Mail, Phone, Building2, BadgeCheck, Home, Package, UserRoundCheck, CheckCircle2, Circle, FileText, X, Activity, AlertCircle, Clock, User, Tag as TagIcon } from 'lucide-react';
 import type { Client, ClientStage, ClientActivity, ClientTask, ClientTag } from '../types/crm';
 import { STAGE_OPTIONS, STAGE_LABELS } from '../types/crm';
-import { convertTimestamp, createActivity as createActivityFn, createTask as createTaskFn, updateTask as updateTaskFn, deleteTask as deleteTaskFn, getAllTags, getClientActivities, getClientTasks, importUsersToClients } from '../lib/crm';
+import { convertTimestamp, createActivity as createActivityFn, createTask as createTaskFn, updateTask as updateTaskFn, deleteTask as deleteTaskFn, getAllTags, getClientActivities, getClientTasks, importUsersToClients, getAllUsers, updateClientOwner, updateClientTags, isOverdue, isDueToday, type UserRecord } from '../lib/crm';
 import { Timestamp } from 'firebase/firestore';
 
 const ADMIN_EMAILS = ['mmalinverno76@gmail.com', 'peewe75@gmail.com', 'mmalinverno@gmail.com'];
@@ -20,6 +20,7 @@ interface ClientFormData {
   stage: ClientStage;
   notes: string;
   tags: string[];
+  ownerId: string;
   nextFollowUpAt: string;
 }
 
@@ -33,6 +34,7 @@ function getInitialFormData(): ClientFormData {
     stage: 'new_lead',
     notes: '',
     tags: [],
+    ownerId: '',
     nextFollowUpAt: '',
   };
 }
@@ -69,10 +71,16 @@ export default function CRM() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showNoteModal, setShowNoteModal] = useState(false);
+  const [showTagModal, setShowTagModal] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDueAt, setNewTaskDueAt] = useState('');
+  const [newTaskAssignee, setNewTaskAssignee] = useState('');
   const [newNoteBody, setNewNoteBody] = useState('');
+  const [newTagName, setNewTagName] = useState('');
+  const [newTagColor, setNewTagColor] = useState('#000000');
   const [form, setForm] = useState<ClientFormData>(getInitialFormData());
+  const [users, setUsers] = useState<UserRecord[]>([]);
+  const [quickFilter, setQuickFilter] = useState<string | null>(null);
 
   const isAdminUser = Boolean(user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase()));
 
@@ -137,6 +145,15 @@ export default function CRM() {
     }
   };
 
+  const fetchUsers = async () => {
+    try {
+      const allUsers = await getAllUsers();
+      setUsers(allUsers);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
+  };
+
   const syncClientsFromUsers = async () => {
     if (!isAdminUser || !user) return;
     setIsSyncing(true);
@@ -169,6 +186,7 @@ export default function CRM() {
     if (user && isAdminUser) {
       fetchClients();
       fetchTags();
+      fetchUsers();
     }
   }, [user, isAdminUser]);
 
@@ -194,6 +212,7 @@ export default function CRM() {
       stage: client.stage || 'new_lead',
       notes: client.notes || '',
       tags: client.tags || [],
+      ownerId: client.ownerId || '',
       nextFollowUpAt: formatDateInput(client.nextFollowUpAt),
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -227,6 +246,7 @@ export default function CRM() {
         source: form.source.trim() || null,
         stage: form.stage,
         tags: form.tags.length > 0 ? form.tags : null,
+        ownerId: form.ownerId || null,
         notes: form.notes.trim() || null,
         nextFollowUpAt: form.nextFollowUpAt ? Timestamp.fromDate(parseDateInput(form.nextFollowUpAt)) : null,
         updatedAt: serverTimestamp(),
@@ -323,7 +343,7 @@ export default function CRM() {
       const taskId = await createTaskFn(
         selectedClient.id,
         newTaskTitle.trim(),
-        undefined,
+        newTaskAssignee || undefined,
         newTaskDueAt ? new Date(newTaskDueAt) : undefined
       );
       if (user) {
@@ -331,6 +351,7 @@ export default function CRM() {
       }
       setNewTaskTitle('');
       setNewTaskDueAt('');
+      setNewTaskAssignee('');
       setShowTaskModal(false);
       fetchClients();
       fetchClientDetails(selectedClient.id);
@@ -386,17 +407,32 @@ export default function CRM() {
   };
 
   const filteredClients = useMemo(() => {
-    return clients.filter((client) => {
+    let filtered = clients;
+    if (quickFilter === 'overdue') {
+      filtered = filtered.filter(c => isOverdue(c));
+    } else if (quickFilter === 'due_today') {
+      filtered = filtered.filter(c => isDueToday(c));
+    } else if (quickFilter === 'new_lead') {
+      filtered = filtered.filter(c => c.stage === 'new_lead');
+    }
+    return filtered.filter((client) => {
       const searchTarget = `${client.name} ${client.email || ''} ${client.phone || ''} ${client.company || ''} ${client.notes || ''}`.toLowerCase();
       const matchesSearch = searchTarget.includes(searchQuery.toLowerCase());
       const matchesStage = stageFilter === 'all' || client.stage === stageFilter;
       const matchesSource = sourceFilter === 'all' || client.source === sourceFilter;
       const matchesOwner = ownerFilter === 'all' || client.ownerId === ownerFilter;
-      const matchesTag = tagFilter === 'all' || (client.tags && client.tags.includes(tagFilter));
+      const matchesTag = tagFilter === 'all' || (client.tags?.includes(tagFilter));
       const matchesSiteOnly = !siteOnlyFilter || client.source === 'site' || client.source === 'google';
       return matchesSearch && matchesStage && matchesSource && matchesOwner && matchesTag && matchesSiteOnly;
     });
-  }, [clients, searchQuery, stageFilter, sourceFilter, ownerFilter, tagFilter, siteOnlyFilter]);
+  }, [clients, searchQuery, stageFilter, sourceFilter, ownerFilter, tagFilter, siteOnlyFilter, quickFilter]);
+
+  const kpiWidgets = useMemo(() => {
+    const overdueCount = clients.filter(c => isOverdue(c)).length;
+    const dueTodayCount = clients.filter(c => isDueToday(c)).length;
+    const newLeadCount = clients.filter(c => c.stage === 'new_lead').length;
+    return { overdueCount, dueTodayCount, newLeadCount };
+  }, [clients]);
 
   const stageCounts = useMemo(() => {
     const counts: Record<ClientStage, number> = {
@@ -485,15 +521,47 @@ export default function CRM() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-10">
+      {quickFilter && (
+        <div className="mb-6 flex items-center gap-3 bg-gray-100 px-4 py-2">
+          <span className="text-sm">Filtro attivo:</span>
+          <span className="text-xs uppercase bg-brand-black text-white px-2 py-1">{quickFilter}</span>
+          <button onClick={() => setQuickFilter(null)} className="text-xs text-red-600 hover:underline">Rimuovi</button>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+        <button onClick={() => setQuickFilter('overdue')} className={`border p-4 text-left transition-colors hover:border-red-400 ${quickFilter === 'overdue' ? 'border-red-600 bg-red-50' : 'border-gray-200 bg-white'}`}>
+          <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-red-600 mb-1">
+            <AlertCircle className="w-3 h-3" />
+            Scaduti
+          </div>
+          <p className="text-2xl font-serif">{kpiWidgets.overdueCount}</p>
+        </button>
+        <button onClick={() => setQuickFilter('due_today')} className={`border p-4 text-left transition-colors hover:border-yellow-400 ${quickFilter === 'due_today' ? 'border-yellow-600 bg-yellow-50' : 'border-gray-200 bg-white'}`}>
+          <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-yellow-600 mb-1">
+            <Clock className="w-3 h-3" />
+            Oggi
+          </div>
+          <p className="text-2xl font-serif">{kpiWidgets.dueTodayCount}</p>
+        </button>
+        <button onClick={() => setQuickFilter('new_lead')} className={`border p-4 text-left transition-colors hover:border-green-400 ${quickFilter === 'new_lead' ? 'border-green-600 bg-green-50' : 'border-gray-200 bg-white'}`}>
+          <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-green-600 mb-1">
+            <Users className="w-3 h-3" />
+            Nuovi Lead
+          </div>
+          <p className="text-2xl font-serif">{kpiWidgets.newLeadCount}</p>
+        </button>
         <button onClick={() => setStageFilter('all')} className={`border p-4 text-left transition-colors ${stageFilter === 'all' ? 'border-brand-black bg-gray-50' : 'border-gray-200 bg-white'}`}>
           <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">Totale</p>
           <p className="text-2xl font-serif">{clients.length}</p>
         </button>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
         {STAGE_OPTIONS.filter(s => s !== 'inactive').map((stage) => (
-          <button key={stage} onClick={() => setStageFilter(stage)} className={`border p-4 text-left transition-colors ${stageFilter === stage ? 'border-brand-black bg-gray-50' : 'border-gray-200 bg-white'}`}>
+          <button key={stage} onClick={() => setStageFilter(stage)} className={`border p-3 text-left transition-colors ${stageFilter === stage ? 'border-brand-black bg-gray-50' : 'border-gray-200 bg-white'}`}>
             <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">{STAGE_LABELS[stage]}</p>
-            <p className="text-2xl font-serif">{stageCounts[stage]}</p>
+            <p className="text-xl font-serif">{stageCounts[stage]}</p>
           </button>
         ))}
       </div>
@@ -538,6 +606,34 @@ export default function CRM() {
                 </select>
               </div>
               <div>
+                <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Owner</label>
+                <select value={form.ownerId} onChange={(e) => setForm({ ...form, ownerId: e.target.value })} className="w-full border border-gray-300 p-2 text-sm bg-white">
+                  <option value="">Non assegnato</option>
+                  {users.map((u) => (<option key={u.id} value={u.id}>{u.email}</option>))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Tag</label>
+                <div className="flex flex-wrap gap-2">
+                  {availableTags.map((tag) => (
+                    <label key={tag.id} className="flex items-center gap-1 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={form.tags.includes(tag.name)}
+                        onChange={(e) => {
+                          const newTags = e.target.checked
+                            ? [...form.tags, tag.name]
+                            : form.tags.filter(t => t !== tag.name);
+                          setForm({ ...form, tags: newTags });
+                        }}
+                        className="w-3 h-3"
+                      />
+                      <span>{tag.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
                 <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Prossimo follow-up</label>
                 <input type="date" value={form.nextFollowUpAt} onChange={(e) => setForm({ ...form, nextFollowUpAt: e.target.value })} className="w-full border border-gray-300 p-2 text-sm" />
               </div>
@@ -576,6 +672,11 @@ export default function CRM() {
                 <option value="all">Tutti gli stage</option>
                 {STAGE_OPTIONS.map((o) => (<option key={o} value={o}>{STAGE_LABELS[o]}</option>))}
               </select>
+              <select value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)} className="border border-gray-300 px-3 py-2 text-sm bg-white">
+                <option value="all">Tutti gli owner</option>
+                <option value="">Non assegnato</option>
+                {users.map((u) => (<option key={u.id} value={u.id}>{u.email}</option>))}
+              </select>
               <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} className="border border-gray-300 px-3 py-2 text-sm bg-white">
                 <option value="all">Tutte le fonti</option>
                 {uniqueSources.map((s) => (<option key={s} value={s}>{s}</option>))}
@@ -584,6 +685,10 @@ export default function CRM() {
                 <option value="all">Tutti i tag</option>
                 {availableTags.map((t) => (<option key={t.id} value={t.name}>{t.name}</option>))}
               </select>
+              <button onClick={() => setShowTagModal(true)} className="border border-gray-200 px-3 py-2 text-sm bg-white hover:bg-gray-50 flex items-center gap-1">
+                <TagIcon className="w-3 h-3" />
+                Gestione Tag
+              </button>
               <label className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 bg-white">
                 <input type="checkbox" checked={siteOnlyFilter} onChange={(e) => setSiteOnlyFilter(e.target.checked)} className="w-4 h-4" />
                 Solo registrati
@@ -620,8 +725,28 @@ export default function CRM() {
                         {STAGE_LABELS[client.stage] || client.stage}
                       </span>
                     </div>
-                    {client.source && <p className="text-xs uppercase tracking-widest text-gray-400 mt-3">Fonte: {client.source}</p>}
-                    {client.notes && <p className="text-sm text-gray-600 mt-3 leading-relaxed line-clamp-2">{client.notes}</p>}
+                    <div className="flex flex-wrap gap-3 mt-2">
+                      {client.ownerId && (
+                        <span className="flex items-center gap-1 text-xs">
+                          <User className="w-3 h-3" />
+                          {users.find(u => u.id === client.ownerId)?.email || client.ownerId}
+                        </span>
+                      )}
+                      {client.tags && client.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {client.tags.map(tagName => {
+                            const tag = availableTags.find(t => t.name === tagName);
+                            return (
+                              <span key={tagName} className="text-[10px] px-1" style={{ backgroundColor: tag?.color || '#666', color: '#fff' }}>
+                                {tagName}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    {client.source && <p className="text-xs uppercase tracking-widest text-gray-400 mt-2">Fonte: {client.source}</p>}
+                    {client.notes && <p className="text-sm text-gray-600 mt-2 leading-relaxed line-clamp-2">{client.notes}</p>}
                   </div>
                   <div className="flex md:flex-col gap-2">
                     <button onClick={(e) => { e.stopPropagation(); startEdit(client); }} className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 border border-blue-200 flex items-center gap-1">
@@ -662,13 +787,46 @@ export default function CRM() {
                   </select>
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">Prossimo follow-up</p>
-                  <input
-                    type="date"
-                    value={formatDateInput(selectedClient.nextFollowUpAt)}
-                    onChange={(e) => scheduleFollowUp(selectedClient.id, e.target.value)}
-                    className="w-full border border-gray-300 p-2 text-sm"
-                  />
+                  <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">Owner</p>
+                  <select
+                    value={selectedClient.ownerId || ''}
+                    onChange={async (e) => {
+                      if (!user) return;
+                      const newOwner = e.target.value || null;
+                      try {
+                        await updateClientOwner(selectedClient.id, newOwner, user.uid);
+                        setSelectedClient({ ...selectedClient, ownerId: newOwner || undefined });
+                        fetchClients();
+                      } catch (error) {
+                        console.error('Error updating owner:', error);
+                      }
+                    }}
+                    className="w-full border border-gray-300 p-2 text-sm bg-white"
+                  >
+                    <option value="">Non assegnato</option>
+                    {users.map((u) => (<option key={u.id} value={u.id}>{u.email}</option>))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">Prossimo follow-up</p>
+                <input
+                  type="date"
+                  value={formatDateInput(selectedClient.nextFollowUpAt)}
+                  onChange={(e) => scheduleFollowUp(selectedClient.id, e.target.value)}
+                  className="w-full border border-gray-300 p-2 text-sm"
+                />
+              </div>
+
+              <div>
+                <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">Tag</p>
+                <div className="flex flex-wrap gap-2">
+                  {availableTags.filter(t => selectedClient.tags?.includes(t.name)).map((tag) => (
+                    <span key={tag.id} className="text-xs px-2 py-1" style={{ backgroundColor: tag.color || '#000', color: '#fff' }}>
+                      {tag.name}
+                    </span>
+                  ))}
                 </div>
               </div>
 
@@ -788,6 +946,10 @@ export default function CRM() {
               className="w-full border border-gray-300 p-2 text-sm mb-4"
               placeholder="Titolo del task..."
             />
+            <select value={newTaskAssignee} onChange={(e) => setNewTaskAssignee(e.target.value)} className="w-full border border-gray-300 p-2 text-sm mb-4 bg-white">
+              <option value="">Assegna a...</option>
+              {users.map((u) => (<option key={u.id} value={u.id}>{u.email}</option>))}
+            </select>
             <input
               type="date"
               value={newTaskDueAt}
@@ -797,6 +959,71 @@ export default function CRM() {
             <div className="flex gap-2">
               <button onClick={() => setShowTaskModal(false)} className="flex-1 border border-gray-200 py-2 text-xs uppercase">Annulla</button>
               <button onClick={addTask} className="flex-1 bg-brand-black text-white py-2 text-xs uppercase">Crea</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTagModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setShowTagModal(false)} />
+          <div className="relative bg-white p-6 w-full max-w-md">
+            <h3 className="text-lg font-serif mb-4">Gestione Tag</h3>
+            <div className="space-y-4 mb-4">
+              <div className="flex gap-2">
+                <input
+                  value={newTagName}
+                  onChange={(e) => setNewTagName(e.target.value)}
+                  placeholder="Nome tag..."
+                  className="flex-1 border border-gray-300 p-2 text-sm"
+                />
+                <input type="color" value={newTagColor} onChange={(e) => setNewTagColor(e.target.value)} className="w-10 h-10 border" />
+              </div>
+              <button
+                onClick={async () => {
+                  if (!newTagName.trim()) return;
+                  try {
+                    const { createTag } = await import('../lib/crm');
+                    await createTag(newTagName.trim(), newTagColor);
+                    setNewTagName('');
+                    setNewTagColor('#000000');
+                    fetchTags();
+                  } catch (error) {
+                    console.error('Error creating tag:', error);
+                  }
+                }}
+                className="w-full bg-brand-black text-white py-2 text-xs uppercase"
+              >
+                Crea Tag
+              </button>
+            </div>
+            <div className="max-h-48 overflow-y-auto space-y-2">
+              {availableTags.map((tag) => (
+                <div key={tag.id} className="flex items-center justify-between p-2 bg-gray-50">
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: tag.color || '#000' }} />
+                    <span className="text-sm">{tag.name}</span>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (!window.confirm(`Eliminare tag "${tag.name}"?`)) return;
+                      try {
+                        const { deleteTag } = await import('../lib/crm');
+                        await deleteTag(tag.id);
+                        fetchTags();
+                      } catch (error) {
+                        console.error('Error deleting tag:', error);
+                      }
+                    }}
+                    className="text-red-500 hover:text-red-700 text-xs"
+                  >
+                    Elimina
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setShowTagModal(false)} className="flex-1 border border-gray-200 py-2 text-xs uppercase">Chiudi</button>
             </div>
           </div>
         </div>
