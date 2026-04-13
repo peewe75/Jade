@@ -1,18 +1,108 @@
-rules_version='2'
+rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      // This rule allows anyone with your database reference to view, edit,
-      // and delete all data in your database. It is useful for getting
-      // started, but it is configured to expire after 30 days because it
-      // leaves your app open to attackers. At that time, all client
-      // requests to your database will be denied.
-      //
-      // Make sure to write security rules for your app before that time, or
-      // else all client requests to your database will be denied until you
-      // update your rules.
-      allow read, write: if request.time < timestamp.date(2026, 5, 13);
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Collection: products, users, subscribers, categories
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() &&
+        (
+          (request.auth.token.email.lower() == "mmalinverno76@gmail.com" && request.auth.token.email_verified == true) ||
+          (request.auth.token.email.lower() == "mmalinverno@gmail.com" && request.auth.token.email_verified == true) ||
+          (request.auth.token.email.lower() == "peewe75@gmail.com" && request.auth.token.email_verified == true) ||
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        );
+    }
+    
+    function isValidEmail(email) {
+      return email is string &&
+        email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+    
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidSubscriber(data) {
+      return hasOnlyAllowedFields(['email', 'subscribedAt']) &&
+             isValidEmail(data.email) &&
+             data.subscribedAt is timestamp;
+    }
+
+    function isValidUser(data, userId) {
+      return hasOnlyAllowedFields(['uid', 'email', 'role', 'createdAt']) &&
+             data.uid == userId &&
+             isValidEmail(data.email) &&
+             data.role in ['admin', 'customer'] &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidProduct(data) {
+      return hasOnlyAllowedFields(['name', 'price', 'description', 'images', 'category', 'tags', 'sizes', 'createdAt']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.price is number && data.price >= 0 &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 2000)) &&
+             data.images is list && data.images.size() > 0 && data.images.size() <= 10 &&
+             data.category is string && data.category.size() > 0 && data.category.size() <= 50 &&
+             (!('tags' in data) || (data.tags is list && data.tags.size() <= 20)) &&
+             (!('sizes' in data) || (data.sizes is list && data.sizes.size() <= 20)) &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /subscribers/{subscriberId} {
+      allow read: if isAdmin();
+      allow create: if isValidSubscriber(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data, userId) && 
+                    ((isOwner(userId) && request.resource.data.role == 'customer') || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data, userId) && 
+                    ((isOwner(userId) && request.resource.data.role == resource.data.role && areImmutableFieldsUnchanged(['uid', 'createdAt'])) || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /products/{productId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidProduct(request.resource.data);
+      allow update: if isAdmin() && isValidProduct(request.resource.data) && areImmutableFieldsUnchanged(['createdAt']);
+      allow delete: if isAdmin();
     }
   }
 }
