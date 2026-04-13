@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { collection, addDoc, deleteDoc, doc, getDocs, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, getDocs, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
-import { Search, Plus, RefreshCw, Users, Pencil, Trash2, Mail, Phone, Building2, BadgeCheck, Home, Package } from 'lucide-react';
+import { Search, Plus, RefreshCw, Users, Pencil, Trash2, Mail, Phone, Building2, BadgeCheck, Home, Package, UserRoundCheck } from 'lucide-react';
 
 type ClientStatus = 'lead' | 'active' | 'vip' | 'inactive';
 
@@ -31,6 +31,7 @@ export default function CRM() {
   const [statusFilter, setStatusFilter] = useState<'all' | ClientStatus>('all');
   const [editingClient, setEditingClient] = useState<ClientRecord | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -67,6 +68,51 @@ export default function CRM() {
       console.error('Error fetching clients:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const syncClientsFromUsers = async () => {
+    if (!isAdminUser) return;
+    setIsSyncing(true);
+    try {
+      const [usersSnapshot, clientsSnapshot] = await Promise.all([
+        getDocs(collection(db, 'users')),
+        getDocs(collection(db, 'clients')),
+      ]);
+
+      const existingClientIds = new Set(clientsSnapshot.docs.map((document) => document.id));
+      const missingUsers = usersSnapshot.docs.filter((document) => !existingClientIds.has(document.id));
+
+      if (missingUsers.length === 0) {
+        alert('Tutti gli utenti registrati sono già presenti nel CRM.');
+        return;
+      }
+
+      await Promise.all(
+        missingUsers.map(async (userDoc) => {
+          const userData = userDoc.data() as { email?: string; createdAt?: unknown };
+          const emailValue = typeof userData.email === 'string' ? userData.email : undefined;
+          const fallbackName = emailValue ? emailValue.split('@')[0] : 'Cliente';
+
+          await setDoc(doc(db, 'clients', userDoc.id), {
+            uid: userDoc.id,
+            name: fallbackName,
+            email: emailValue ?? null,
+            source: 'import-users',
+            status: 'lead',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        }),
+      );
+
+      alert(`Import completato: aggiunti ${missingUsers.length} contatti dal registro utenti.`);
+      fetchClients();
+    } catch (error) {
+      console.error('Error syncing clients from users:', error);
+      alert('Errore durante la sincronizzazione utenti → CRM.');
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -204,6 +250,14 @@ export default function CRM() {
             <Package className="w-4 h-4" />
             Magazzino
           </Link>
+          <button
+            onClick={syncClientsFromUsers}
+            disabled={isSyncing}
+            className="flex items-center gap-2 bg-white hover:bg-gray-50 border border-gray-200 text-brand-black px-4 py-2 text-xs uppercase tracking-widest font-medium transition-colors disabled:opacity-50"
+          >
+            <UserRoundCheck className="w-4 h-4" />
+            <span>{isSyncing ? 'Sincronizzo…' : 'Importa utenti'}</span>
+          </button>
           <button
             onClick={fetchClients}
             className="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-brand-black px-4 py-2 text-xs uppercase tracking-widest font-medium transition-colors"

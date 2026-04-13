@@ -68,6 +68,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return unsubscribe;
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+    // Best-effort: ensure CRM contact exists even for already logged-in sessions.
+    ensureUserRecords(user, 'session').catch((error) => {
+      console.error('Error ensuring user records:', error);
+    });
+  }, [user]);
+
   const signInWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
     try {

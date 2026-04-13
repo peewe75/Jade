@@ -80,12 +80,12 @@ service cloud.firestore {
       return hasOnlyAllowedFields(['uid', 'name', 'email', 'phone', 'company', 'source', 'status', 'notes', 'createdAt', 'updatedAt', 'photoURL']) &&
              data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
              (!('uid' in data) || (data.uid is string && data.uid.size() > 0)) &&
-             (!('email' in data) || isValidEmail(data.email)) &&
-             (!('phone' in data) || (data.phone is string && data.phone.size() <= 30)) &&
-             (!('company' in data) || (data.company is string && data.company.size() <= 100)) &&
-             (!('source' in data) || (data.source is string && data.source.size() <= 50)) &&
+             (!('email' in data) || data.email == null || isValidEmail(data.email)) &&
+             (!('phone' in data) || data.phone == null || (data.phone is string && data.phone.size() <= 30)) &&
+             (!('company' in data) || data.company == null || (data.company is string && data.company.size() <= 100)) &&
+             (!('source' in data) || data.source == null || (data.source is string && data.source.size() <= 50)) &&
              data.status in ['lead', 'active', 'vip', 'inactive'] &&
-             (!('notes' in data) || (data.notes is string && data.notes.size() <= 4000)) &&
+             (!('notes' in data) || data.notes == null || (data.notes is string && data.notes.size() <= 4000)) &&
              (!('photoURL' in data) || data.photoURL == null || data.photoURL is string) &&
              (!('createdAt' in data) || data.createdAt is timestamp) &&
              (!('updatedAt' in data) || data.updatedAt is timestamp);
@@ -117,8 +117,9 @@ service cloud.firestore {
 
     match /clients/{clientId} {
       allow read: if isAdmin();
-      allow create: if isAuthenticated() && isValidClient(request.resource.data) &&
-                    (!('uid' in request.resource.data) || request.resource.data.uid == request.auth.uid);
+      allow create: if (isAdmin() && isValidClient(request.resource.data)) ||
+                    (isAuthenticated() && isValidClient(request.resource.data) &&
+                     (!('uid' in request.resource.data) || request.resource.data.uid == request.auth.uid));
       allow update, delete: if isAdmin();
     }
 
