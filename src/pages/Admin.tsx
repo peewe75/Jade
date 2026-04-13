@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type ChangeEvent, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type ChangeEvent, type DragEvent, type FormEvent } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { collection, addDoc, serverTimestamp, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firestore';
@@ -39,6 +39,7 @@ export default function Admin() {
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [featured, setFeatured] = useState(false);
   const [order, setOrder] = useState<number | null>(null);
+  const [draggedImageIndex, setDraggedImageIndex] = useState<number | null>(null);
   
   const isAdminUser = Boolean(user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase()));
 
@@ -123,6 +124,19 @@ export default function Admin() {
     setProductImages(previousImages => previousImages.map((image, index) => (index === slotIndex ? value : image)));
   };
 
+  const moveProductImage = (sourceIndex: number, targetIndex: number) => {
+    setProductImages(previousImages => {
+      if (sourceIndex === targetIndex) {
+        return previousImages;
+      }
+
+      const nextImages = [...previousImages];
+      const [movedImage] = nextImages.splice(sourceIndex, 1);
+      nextImages.splice(targetIndex, 0, movedImage);
+      return nextImages.slice(0, 4);
+    });
+  };
+
   const resetProductForm = () => {
     setName('');
     setPrice('');
@@ -133,6 +147,7 @@ export default function Admin() {
     setFeatured(false);
     setOrder(null);
     setEditingProduct(null);
+    setDraggedImageIndex(null);
   };
 
   // --- Category Management ---
@@ -202,6 +217,25 @@ export default function Admin() {
     }
   };
 
+  const handleImageDragStart = (index: number) => {
+    setDraggedImageIndex(index);
+  };
+
+  const handleImageDragOver = (event: DragEvent<HTMLLabelElement>) => {
+    event.preventDefault();
+  };
+
+  const handleImageDrop = (event: DragEvent<HTMLLabelElement>, targetIndex: number) => {
+    event.preventDefault();
+    if (draggedImageIndex === null) return;
+    moveProductImage(draggedImageIndex, targetIndex);
+    setDraggedImageIndex(null);
+  };
+
+  const handleImageDragEnd = () => {
+    setDraggedImageIndex(null);
+  };
+
   const toggleSize = (size: string) => {
     setSelectedSizes(prev => 
       prev.includes(size) ? prev.filter(s => s !== size) : [...prev, size]
@@ -263,13 +297,11 @@ export default function Admin() {
     setName(product.name);
     setPrice(product.price.toString());
     setCategory(product.category);
-    setProductImages([
-      ...(Array.isArray(product.images) ? product.images.slice(0, 4) : []),
-      '',
-      '',
-      '',
-      '',
-    ].slice(0, 4));
+    const nextImages = Array.isArray(product.images) ? product.images.slice(0, 4) : [];
+    while (nextImages.length < 4) {
+      nextImages.push('');
+    }
+    setProductImages(nextImages);
     setDescription(product.description || '');
     setSelectedSizes(product.sizes || []);
     setFeatured(product.featured || false);
@@ -605,7 +637,14 @@ export default function Admin() {
 
                       <label
                         htmlFor={`image-upload-${index}`}
+                        draggable={Boolean(image)}
+                        onDragStart={() => handleImageDragStart(index)}
+                        onDragOver={handleImageDragOver}
+                        onDrop={(event) => handleImageDrop(event, index)}
+                        onDragEnd={handleImageDragEnd}
                         className={`flex items-center justify-center w-full aspect-[3/4] cursor-pointer transition-colors ${
+                          draggedImageIndex === index ? 'opacity-50' : ''
+                        } ${
                           image ? 'bg-gray-50 border border-gray-200' : 'border-2 border-dashed border-gray-300 hover:bg-gray-50'
                         }`}
                       >

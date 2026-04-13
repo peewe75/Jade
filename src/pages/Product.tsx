@@ -132,7 +132,7 @@ export default function Product() {
 
   const displayImages = displayProduct.images.filter(Boolean);
   const heroImage = displayImages[selectedImage] || displayImages[0];
-  const galleryImages = displayImages.length > 0 ? displayImages : [displayProduct.images[0]];
+  const galleryImages = displayImages.slice(1);
 
   const availableSizes = displayProduct.sizes || ['XS', 'S', 'M', 'L', 'XL'];
 
@@ -155,25 +155,28 @@ export default function Product() {
               referrerPolicy="no-referrer"
             />
           </motion.div>
-          {galleryImages.length > 1 && (
+          {galleryImages.length > 0 && (
             <div className="grid grid-cols-4 gap-3">
-              {galleryImages.map((img, index) => (
+              {galleryImages.map((img, index) => {
+                const actualIndex = index + 1;
+                return (
                 <button
-                  key={`${img}-${index}`}
+                  key={`${img}-${actualIndex}`}
                   type="button"
-                  onClick={() => setSelectedImage(index)}
+                  onClick={() => setSelectedImage(actualIndex)}
                   className={`aspect-[3/4] overflow-hidden bg-gray-100 border transition-all ${
-                    selectedImage === index ? 'border-brand-black ring-1 ring-brand-black' : 'border-transparent'
+                    selectedImage === actualIndex ? 'border-brand-black ring-1 ring-brand-black' : 'border-transparent'
                   }`}
                 >
                   <img 
                     src={img} 
-                    alt={`Detail ${index + 1}`} 
+                    alt={`Detail ${actualIndex + 1}`} 
                     className="w-full h-full object-cover"
                     referrerPolicy="no-referrer"
                   />
                 </button>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
