@@ -34,7 +34,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const userRef = doc(db, 'users', loggedInUser.uid);
       const userSnap = await getDoc(userRef);
       
-      const isAdminEmail = loggedInUser.email?.toLowerCase() === 'mmalinverno76@gmail.com';
+      const ADMIN_EMAILS = ['mmalinverno76@gmail.com', 'peewe75@gmail.com', 'mmalinverno@gmail.com'];
+      const isAdminEmail = ADMIN_EMAILS.includes(loggedInUser.email?.toLowerCase() || '');
       
       if (!userSnap.exists()) {
         // Create user document for the first time
