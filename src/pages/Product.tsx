@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, ChevronUp, Star, Camera, X, RefreshCw } from 'lucide-react';
 import { useParams, Link } from 'react-router-dom';
@@ -55,7 +55,7 @@ export default function Product() {
     setOpenAccordion(openAccordion === id ? null : id);
   };
 
-  const handleVtoSubmit = async (e: React.FormEvent) => {
+  const handleVtoSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!vtoFile || !vtoConsent || !displayProduct) return;
 
@@ -403,4 +403,3 @@ export default function Product() {
     </main>
   );
 }
-

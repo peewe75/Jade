@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ChangeEvent, type FormEvent } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { collection, addDoc, serverTimestamp, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firestore';
@@ -78,7 +78,7 @@ export default function Admin() {
   }, [user]);
 
   // --- Category Management ---
-  const handleAddCategory = async (e: React.FormEvent) => {
+  const handleAddCategory = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!newCategory.trim()) return;
     try {
@@ -124,7 +124,7 @@ export default function Admin() {
   };
 
   // --- Product Management ---
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -148,7 +148,7 @@ export default function Admin() {
     );
   };
 
-  const handleAddProduct = async (e: React.FormEvent) => {
+  const handleAddProduct = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!name || !price || !imageUrl || !category) {
       alert("Compila tutti i campi obbligatori, inclusa la categoria.");
@@ -164,8 +164,10 @@ export default function Admin() {
         description: description || 'Luxury fashion piece by The Blondes Brand.',
         tags: editingProduct ? (editingProduct.tags || ['New In']) : ['New In'],
         sizes: selectedSizes.length > 0 ? selectedSizes : ['One Size'],
-        featured,
-        featuredOrder: featured ? (order ?? Date.now()) : null,
+        featured: Boolean(featured),
+        ...(featured
+          ? { featuredOrder: order ?? Date.now() }
+          : { featuredOrder: null }),
         updatedAt: serverTimestamp(),
       };
 

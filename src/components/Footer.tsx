@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -7,7 +7,7 @@ export default function Footer() {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubscribe = async (e: React.FormEvent) => {
+  const handleSubscribe = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (email) {
       try {
