@@ -191,7 +191,7 @@ export default function CRM() {
           </div>
           <h1 className="text-4xl md:text-6xl font-serif mb-3">Gestione Clienti</h1>
           <p className="text-gray-500 text-sm max-w-2xl">
-            Centralizza clienti, note e stato commerciale in una vista unica per il team.
+            Centralizza i contatti che arrivano dalle registrazioni del sito e quelli creati manualmente dal team, con note e stato commerciale in una vista unica.
           </p>
         </div>
 
@@ -253,7 +253,7 @@ export default function CRM() {
               </div>
               <div>
                 <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Fonte</label>
-                <input value={source} onChange={(event) => setSource(event.target.value)} className="w-full border border-gray-300 p-2 text-sm" placeholder="Instagram, negozio, referral..." />
+                <input value={source} onChange={(event) => setSource(event.target.value)} className="w-full border border-gray-300 p-2 text-sm" placeholder="Sito, Instagram, negozio, referral..." />
               </div>
               <div>
                 <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Stato</label>
