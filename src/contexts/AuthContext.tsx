@@ -53,7 +53,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: loggedInUser.email,
         photoURL: loggedInUser.photoURL || null,
         source,
-        status: 'lead',
+        stage: 'new_lead',
+        totalOrders: 0,
+        totalSpent: 0,
+        notesCount: 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });

@@ -1,45 +1,66 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { collection, addDoc, deleteDoc, doc, getDocs, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, deleteDoc, doc, getDocs, serverTimestamp, updateDoc, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
-import { Search, Plus, RefreshCw, Users, Pencil, Trash2, Mail, Phone, Building2, BadgeCheck, Home, Package, UserRoundCheck } from 'lucide-react';
-
-type ClientStatus = 'lead' | 'active' | 'vip' | 'inactive';
-
-interface ClientRecord {
-  id: string;
-  uid?: string;
-  name: string;
-  email?: string;
-  phone?: string;
-  company?: string;
-  source?: string;
-  status: ClientStatus;
-  notes?: string;
-}
+import { Search, Plus, RefreshCw, Users, Pencil, Trash2, Mail, Phone, Building2, BadgeCheck, Home, Package, UserRoundCheck, CheckCircle2, Circle, FileText, X, Activity } from 'lucide-react';
+import type { Client, ClientStage, ClientActivity, ClientTask, ClientTag } from '../types/crm';
+import { STAGE_OPTIONS, STAGE_LABELS } from '../types/crm';
+import { convertTimestamp, createActivity as createActivityFn, createTask as createTaskFn, updateTask as updateTaskFn, deleteTask as deleteTaskFn, getAllTags, getClientActivities, getClientTasks, importUsersToClients } from '../lib/crm';
+import { Timestamp } from 'firebase/firestore';
 
 const ADMIN_EMAILS = ['mmalinverno76@gmail.com', 'peewe75@gmail.com', 'mmalinverno@gmail.com'];
-const STATUS_OPTIONS: ClientStatus[] = ['lead', 'active', 'vip', 'inactive'];
+
+interface ClientFormData {
+  name: string;
+  email: string;
+  phone: string;
+  company: string;
+  source: string;
+  stage: ClientStage;
+  notes: string;
+  tags: string[];
+  nextFollowUpAt: string;
+}
+
+function getInitialFormData(): ClientFormData {
+  return {
+    name: '',
+    email: '',
+    phone: '',
+    company: '',
+    source: 'admin-manual',
+    stage: 'new_lead',
+    notes: '',
+    tags: [],
+    nextFollowUpAt: '',
+  };
+}
 
 export default function CRM() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const [clients, setClients] = useState<ClientRecord[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | ClientStatus>('all');
-  const [editingClient, setEditingClient] = useState<ClientRecord | null>(null);
+  const [stageFilter, setStageFilter] = useState<'all' | ClientStage>('all');
+  const [sourceFilter, setSourceFilter] = useState<string>('all');
+  const [ownerFilter, setOwnerFilter] = useState<string>('all');
+  const [tagFilter, setTagFilter] = useState<string>('all');
+  const [siteOnlyFilter, setSiteOnlyFilter] = useState<boolean>(false);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [activities, setActivities] = useState<ClientActivity[]>([]);
+  const [tasks, setTasks] = useState<ClientTask[]>([]);
+  const [availableTags, setAvailableTags] = useState<ClientTag[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [company, setCompany] = useState('');
-  const [source, setSource] = useState('');
-  const [status, setStatus] = useState<ClientStatus>('lead');
-  const [notes, setNotes] = useState('');
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskDueAt, setNewTaskDueAt] = useState('');
+  const [newNoteBody, setNewNoteBody] = useState('');
+  const [form, setForm] = useState<ClientFormData>(getInitialFormData());
 
   const isAdminUser = Boolean(user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase()));
 
@@ -59,11 +80,35 @@ export default function CRM() {
     if (!isAdminUser) return;
     setLoading(true);
     try {
-      const snapshot = await getDocs(collection(db, 'clients'));
-      setClients(snapshot.docs.map((document) => ({
-        id: document.id,
-        ...(document.data() as Omit<ClientRecord, 'id'>),
-      })));
+      const snapshot = await getDocs(query(collection(db, 'clients'), orderBy('updatedAt', 'desc')));
+      const docs = snapshot.docs.map((document) => {
+        const data = document.data();
+        return {
+          id: document.id,
+          uid: data.uid,
+          name: data.name || '',
+          email: data.email,
+          phone: data.phone,
+          company: data.company,
+          source: data.source,
+          stage: data.stage || (data.status as ClientStage) || 'new_lead',
+          tags: data.tags || [],
+          ownerId: data.ownerId,
+          preferredCategories: data.preferredCategories,
+          preferredSizes: data.preferredSizes,
+          lastContactAt: convertTimestamp(data.lastContactAt),
+          nextFollowUpAt: convertTimestamp(data.nextFollowUpAt),
+          lastActivityAt: convertTimestamp(data.lastActivityAt),
+          totalOrders: data.totalOrders || 0,
+          totalSpent: data.totalSpent || 0,
+          notesCount: data.notesCount || 0,
+          photoURL: data.photoURL,
+          notes: data.notes,
+          createdAt: convertTimestamp(data.createdAt),
+          updatedAt: convertTimestamp(data.updatedAt),
+        } as Client;
+      });
+      setClients(docs);
     } catch (error) {
       console.error('Error fetching clients:', error);
     } finally {
@@ -71,84 +116,91 @@ export default function CRM() {
     }
   };
 
+  const fetchTags = async () => {
+    try {
+      const tags = await getAllTags();
+      setAvailableTags(tags);
+    } catch (error) {
+      console.error('Error fetching tags:', error);
+    }
+  };
+
   const syncClientsFromUsers = async () => {
-    if (!isAdminUser) return;
+    if (!isAdminUser || !user) return;
     setIsSyncing(true);
     try {
-      const [usersSnapshot, clientsSnapshot] = await Promise.all([
-        getDocs(collection(db, 'users')),
-        getDocs(collection(db, 'clients')),
-      ]);
-
-      const existingClientIds = new Set(clientsSnapshot.docs.map((document) => document.id));
-      const missingUsers = usersSnapshot.docs.filter((document) => !existingClientIds.has(document.id));
-
-      if (missingUsers.length === 0) {
-        alert('Tutti gli utenti registrati sono già presenti nel CRM.');
-        return;
-      }
-
-      await Promise.all(
-        missingUsers.map(async (userDoc) => {
-          const userData = userDoc.data() as { email?: string; createdAt?: unknown };
-          const emailValue = typeof userData.email === 'string' ? userData.email : undefined;
-          const fallbackName = emailValue ? emailValue.split('@')[0] : 'Cliente';
-
-          await setDoc(doc(db, 'clients', userDoc.id), {
-            uid: userDoc.id,
-            name: fallbackName,
-            email: emailValue ?? null,
-            source: 'import-users',
-            status: 'lead',
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          });
-        }),
-      );
-
-      alert(`Import completato: aggiunti ${missingUsers.length} contatti dal registro utenti.`);
+      const count = await importUsersToClients(user.uid);
+      alert(`Import completato: aggiunti ${count} contatti dal registro utenti.`);
       fetchClients();
     } catch (error) {
       console.error('Error syncing clients from users:', error);
-      alert('Errore durante la sincronizzazione utenti → CRM.');
+      alert('Errore durante la sincronizzazione utenti -> CRM.');
     } finally {
       setIsSyncing(false);
+    }
+  };
+
+  const fetchClientDetails = async (clientId: string) => {
+    try {
+      const [acts, tks] = await Promise.all([
+        getClientActivities(clientId),
+        getClientTasks(clientId),
+      ]);
+      setActivities(acts);
+      setTasks(tks);
+    } catch (error) {
+      console.error('Error fetching client details:', error);
     }
   };
 
   useEffect(() => {
     if (user && isAdminUser) {
       fetchClients();
+      fetchTags();
     }
   }, [user, isAdminUser]);
 
+  useEffect(() => {
+    if (selectedClient) {
+      fetchClientDetails(selectedClient.id);
+    }
+  }, [selectedClient]);
+
   const resetForm = () => {
-    setName('');
-    setEmail('');
-    setPhone('');
-    setCompany('');
-    setSource('');
-    setStatus('lead');
-    setNotes('');
+    setForm(getInitialFormData());
     setEditingClient(null);
   };
 
-  const startEdit = (client: ClientRecord) => {
+  const startEdit = (client: Client) => {
     setEditingClient(client);
-    setName(client.name || '');
-    setEmail(client.email || '');
-    setPhone(client.phone || '');
-    setCompany(client.company || '');
-    setSource(client.source || '');
-    setStatus(client.status || 'lead');
-    setNotes(client.notes || '');
+    setForm({
+      name: client.name || '',
+      email: client.email || '',
+      phone: client.phone || '',
+      company: client.company || '',
+      source: client.source || 'admin-manual',
+      stage: client.stage || 'new_lead',
+      notes: client.notes || '',
+      tags: client.tags || [],
+      nextFollowUpAt: client.nextFollowUpAt ? client.nextFollowUpAt.toISOString().split('T')[0] : '',
+    });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const saveClient = async (event: FormEvent<HTMLFormElement>) => {
+  const selectClient = (client: Client) => {
+    setSelectedClient(client);
+  };
+
+  const closeDetail = () => {
+    setSelectedClient(null);
+    setActivities([]);
+    setTasks([]);
+  };
+
+  const saveClient = async (event: FormEvent) => {
     event.preventDefault();
     if (!isAdminUser) return;
-    if (!name.trim()) {
+    if (!form.name.trim()) {
       alert('Inserisci almeno il nome del cliente.');
       return;
     }
@@ -156,23 +208,31 @@ export default function CRM() {
     setIsSaving(true);
     try {
       const payload = {
-        name: name.trim(),
-        email: email.trim() || null,
-        phone: phone.trim() || null,
-        company: company.trim() || null,
-        source: source.trim() || null,
-        status,
-        notes: notes.trim() || null,
+        name: form.name.trim(),
+        email: form.email.trim() || null,
+        phone: form.phone.trim() || null,
+        company: form.company.trim() || null,
+        source: form.source.trim() || null,
+        stage: form.stage,
+        tags: form.tags.length > 0 ? form.tags : null,
+        notes: form.notes.trim() || null,
+        nextFollowUpAt: form.nextFollowUpAt ? Timestamp.fromDate(new Date(form.nextFollowUpAt)) : null,
         updatedAt: serverTimestamp(),
       };
 
       if (editingClient) {
         await updateDoc(doc(db, 'clients', editingClient.id), payload);
       } else {
-        await addDoc(collection(db, 'clients'), {
+        const clientDoc = await addDoc(collection(db, 'clients'), {
           ...payload,
+          totalOrders: 0,
+          totalSpent: 0,
+          notesCount: 0,
           createdAt: serverTimestamp(),
         });
+        if (user) {
+          await createActivityFn(clientDoc.id, 'created', 'Cliente creato manualmente', user.uid);
+        }
       }
 
       resetForm();
@@ -190,10 +250,111 @@ export default function CRM() {
     if (!window.confirm('Eliminare questo cliente?')) return;
     try {
       await deleteDoc(doc(db, 'clients', clientId));
+      if (selectedClient?.id === clientId) {
+        closeDetail();
+      }
       fetchClients();
     } catch (error) {
       console.error('Error deleting client:', error);
-      alert('Errore durante l’eliminazione del cliente.');
+      alert('Errore durante eliminazione del cliente.');
+    }
+  };
+
+  const changeStage = async (clientId: string, newStage: ClientStage) => {
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, 'clients', clientId), {
+        stage: newStage,
+        updatedAt: serverTimestamp(),
+      });
+      await createActivityFn(clientId, 'stage_changed', `Stage cambiato a ${STAGE_LABELS[newStage]}`, user.uid, undefined, { newStage });
+      fetchClients();
+      if (selectedClient?.id === clientId) {
+        setSelectedClient({ ...selectedClient, stage: newStage });
+      }
+    } catch (error) {
+      console.error('Error changing stage:', error);
+    }
+  };
+
+  const addNote = async () => {
+    if (!selectedClient || !user || !newNoteBody.trim()) return;
+    try {
+      await createActivityFn(selectedClient.id, 'note_added', 'Nota aggiunta', user.uid, newNoteBody.trim());
+      setSelectedClient({
+        ...selectedClient,
+        notesCount: selectedClient.notesCount + 1,
+        lastActivityAt: new Date(),
+      });
+      setNewNoteBody('');
+      setShowNoteModal(false);
+      fetchClients();
+      fetchClientDetails(selectedClient.id);
+    } catch (error) {
+      console.error('Error adding note:', error);
+    }
+  };
+
+  const addTask = async () => {
+    if (!selectedClient || !newTaskTitle.trim()) return;
+    try {
+      const taskId = await createTaskFn(
+        selectedClient.id,
+        newTaskTitle.trim(),
+        undefined,
+        newTaskDueAt ? new Date(newTaskDueAt) : undefined
+      );
+      if (user) {
+        await createActivityFn(selectedClient.id, 'task_created', 'Task creato', user.uid, newTaskTitle.trim());
+      }
+      setNewTaskTitle('');
+      setNewTaskDueAt('');
+      setShowTaskModal(false);
+      fetchClients();
+      fetchClientDetails(selectedClient.id);
+    } catch (error) {
+      console.error('Error adding task:', error);
+    }
+  };
+
+  const completeTask = async (taskId: string) => {
+    if (!selectedClient || !user) return;
+    try {
+      await updateTaskFn(taskId, { status: 'completed' });
+      await createActivityFn(selectedClient.id, 'task_completed', 'Task completato', user.uid);
+      fetchClients();
+      fetchClientDetails(selectedClient.id);
+    } catch (error) {
+      console.error('Error completing task:', error);
+    }
+  };
+
+  const removeTask = async (taskId: string) => {
+    if (!window.confirm('Eliminare questo task?')) return;
+    try {
+      await deleteTaskFn(taskId);
+      if (selectedClient) {
+        fetchClients();
+        fetchClientDetails(selectedClient.id);
+      }
+    } catch (error) {
+      console.error('Error deleting task:', error);
+    }
+  };
+
+  const scheduleFollowUp = async (clientId: string, date: string) => {
+    if (!date) return;
+    try {
+      await updateDoc(doc(db, 'clients', clientId), {
+        nextFollowUpAt: Timestamp.fromDate(new Date(date)),
+        updatedAt: serverTimestamp(),
+      });
+      if (selectedClient?.id === clientId) {
+        setSelectedClient({ ...selectedClient, nextFollowUpAt: new Date(date) });
+      }
+      fetchClients();
+    } catch (error) {
+      console.error('Error scheduling follow-up:', error);
     }
   };
 
@@ -201,14 +362,43 @@ export default function CRM() {
     return clients.filter((client) => {
       const searchTarget = `${client.name} ${client.email || ''} ${client.phone || ''} ${client.company || ''} ${client.notes || ''}`.toLowerCase();
       const matchesSearch = searchTarget.includes(searchQuery.toLowerCase());
-      const matchesStatus = statusFilter === 'all' || client.status === statusFilter;
-      return matchesSearch && matchesStatus;
+      const matchesStage = stageFilter === 'all' || client.stage === stageFilter;
+      const matchesSource = sourceFilter === 'all' || client.source === sourceFilter;
+      const matchesOwner = ownerFilter === 'all' || client.ownerId === ownerFilter;
+      const matchesTag = tagFilter === 'all' || (client.tags && client.tags.includes(tagFilter));
+      const matchesSiteOnly = !siteOnlyFilter || client.source === 'site' || client.source === 'google';
+      return matchesSearch && matchesStage && matchesSource && matchesOwner && matchesTag && matchesSiteOnly;
     });
-  }, [clients, searchQuery, statusFilter]);
+  }, [clients, searchQuery, stageFilter, sourceFilter, ownerFilter, tagFilter, siteOnlyFilter]);
 
-  const totalLeads = clients.filter((client) => client.status === 'lead').length;
-  const totalVip = clients.filter((client) => client.status === 'vip').length;
-  const totalActive = clients.filter((client) => client.status === 'active').length;
+  const stageCounts = useMemo(() => {
+    const counts: Record<ClientStage, number> = {
+      new_lead: 0,
+      contacted: 0,
+      qualified: 0,
+      customer: 0,
+      vip: 0,
+      inactive: 0,
+    };
+    clients.forEach(c => {
+      if (c.stage && counts[c.stage] !== undefined) {
+        counts[c.stage]++;
+      }
+    });
+    return counts;
+  }, [clients]);
+
+  const uniqueSources = useMemo(() => {
+    const sources = new Set<string>();
+    clients.forEach(c => { if (c.source) sources.add(c.source); });
+    return Array.from(sources).sort();
+  }, [clients]);
+
+  const uniqueOwners = useMemo(() => {
+    const owners = new Set<string>();
+    clients.forEach(c => { if (c.ownerId) owners.add(c.ownerId); });
+    return Array.from(owners).sort();
+  }, [clients]);
 
   if (authLoading || loading) {
     return <div className="pt-32 text-center">Loading...</div>;
@@ -228,7 +418,7 @@ export default function CRM() {
   }
 
   return (
-    <main className="flex-grow pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
+    <main className="flex-grow pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-[1600px] mx-auto w-full">
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-10">
         <div>
           <div className="flex items-center gap-3 text-xs uppercase tracking-[0.35em] text-gray-500 mb-3">
@@ -237,11 +427,11 @@ export default function CRM() {
           </div>
           <h1 className="text-4xl md:text-6xl font-serif mb-3">Gestione Clienti</h1>
           <p className="text-gray-500 text-sm max-w-2xl">
-            Centralizza i contatti che arrivano dalle registrazioni del sito e quelli creati manualmente dal team, con note e stato commerciale in una vista unica.
+            Pipeline commerciale con lead, attivita e task per ogni cliente.
           </p>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <Link to="/admin" className="border border-gray-200 px-4 py-2 text-xs uppercase tracking-widest hover:border-brand-black transition-colors flex items-center gap-2">
             <Home className="w-4 h-4" />
             Dashboard
@@ -256,7 +446,7 @@ export default function CRM() {
             className="flex items-center gap-2 bg-white hover:bg-gray-50 border border-gray-200 text-brand-black px-4 py-2 text-xs uppercase tracking-widest font-medium transition-colors disabled:opacity-50"
           >
             <UserRoundCheck className="w-4 h-4" />
-            <span>{isSyncing ? 'Sincronizzo…' : 'Importa utenti'}</span>
+            <span>{isSyncing ? 'Sincronizzo...' : 'Importa utenti'}</span>
           </button>
           <button
             onClick={fetchClients}
@@ -268,19 +458,17 @@ export default function CRM() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
-        <div className="border border-gray-200 p-5 bg-white">
-          <p className="text-xs uppercase tracking-widest text-gray-500 mb-2">Totale clienti</p>
-          <p className="text-3xl font-serif">{clients.length}</p>
-        </div>
-        <div className="border border-gray-200 p-5 bg-white">
-          <p className="text-xs uppercase tracking-widest text-gray-500 mb-2">Lead</p>
-          <p className="text-3xl font-serif">{totalLeads}</p>
-        </div>
-        <div className="border border-gray-200 p-5 bg-white">
-          <p className="text-xs uppercase tracking-widest text-gray-500 mb-2">VIP / Attivi</p>
-          <p className="text-3xl font-serif">{totalVip + totalActive}</p>
-        </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-10">
+        <button onClick={() => setStageFilter('all')} className={`border p-4 text-left transition-colors ${stageFilter === 'all' ? 'border-brand-black bg-gray-50' : 'border-gray-200 bg-white'}`}>
+          <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">Totale</p>
+          <p className="text-2xl font-serif">{clients.length}</p>
+        </button>
+        {STAGE_OPTIONS.filter(s => s !== 'inactive').map((stage) => (
+          <button key={stage} onClick={() => setStageFilter(stage)} className={`border p-4 text-left transition-colors ${stageFilter === stage ? 'border-brand-black bg-gray-50' : 'border-gray-200 bg-white'}`}>
+            <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">{STAGE_LABELS[stage]}</p>
+            <p className="text-2xl font-serif">{stageCounts[stage]}</p>
+          </button>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -290,39 +478,48 @@ export default function CRM() {
 
             <form onSubmit={saveClient} className="space-y-4">
               <div>
-                <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Nome</label>
-                <input value={name} onChange={(event) => setName(event.target.value)} className="w-full border border-gray-300 p-2 text-sm" />
+                <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Nome *</label>
+                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full border border-gray-300 p-2 text-sm" />
               </div>
               <div>
                 <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Email</label>
-                <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" className="w-full border border-gray-300 p-2 text-sm" />
+                <input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} type="email" className="w-full border border-gray-300 p-2 text-sm" />
               </div>
               <div>
                 <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Telefono</label>
-                <input value={phone} onChange={(event) => setPhone(event.target.value)} className="w-full border border-gray-300 p-2 text-sm" />
+                <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="w-full border border-gray-300 p-2 text-sm" />
               </div>
               <div>
                 <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Azienda</label>
-                <input value={company} onChange={(event) => setCompany(event.target.value)} className="w-full border border-gray-300 p-2 text-sm" />
+                <input value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} className="w-full border border-gray-300 p-2 text-sm" />
               </div>
               <div>
                 <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Fonte</label>
-                <input value={source} onChange={(event) => setSource(event.target.value)} className="w-full border border-gray-300 p-2 text-sm" placeholder="Sito, Instagram, negozio, referral..." />
+                <select value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} className="w-full border border-gray-300 p-2 text-sm bg-white">
+                  <option value="admin-manual">Manuale</option>
+                  <option value="site">Sito</option>
+                  <option value="google">Google</option>
+                  <option value="import-users">Import</option>
+                </select>
               </div>
               <div>
-                <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Stato</label>
-                <select value={status} onChange={(event) => setStatus(event.target.value as ClientStatus)} className="w-full border border-gray-300 p-2 text-sm bg-white">
-                  {STATUS_OPTIONS.map((option) => (
-                    <option key={option} value={option}>{option}</option>
+                <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Stage</label>
+                <select value={form.stage} onChange={(e) => setForm({ ...form, stage: e.target.value as ClientStage })} className="w-full border border-gray-300 p-2 text-sm bg-white">
+                  {STAGE_OPTIONS.map((option) => (
+                    <option key={option} value={option}>{STAGE_LABELS[option]}</option>
                   ))}
                 </select>
               </div>
               <div>
+                <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Prossimo follow-up</label>
+                <input type="date" value={form.nextFollowUpAt} onChange={(e) => setForm({ ...form, nextFollowUpAt: e.target.value })} className="w-full border border-gray-300 p-2 text-sm" />
+              </div>
+              <div>
                 <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Note</label>
-                <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={4} className="w-full border border-gray-300 p-2 text-sm" />
+                <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={4} className="w-full border border-gray-300 p-2 text-sm" />
               </div>
 
-              <button type="submit" disabled={isSaving} className="w-full bg-brand-black text-white py-3 text-xs uppercase tracking-widest font-medium hover:bg-gray-900 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50">
+              <button type="submit" disabled={isSaving} className="w-full bg-brand-black text-white py-3 text-xs uppercase tracking-widest font-medium hover:bg-gray-900 transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
                 <Plus className="w-4 h-4" />
                 <span>{editingClient ? 'Salva Cliente' : 'Aggiungi Cliente'}</span>
               </button>
@@ -337,26 +534,34 @@ export default function CRM() {
         </div>
 
         <div className="lg:col-span-2">
-          <div className="flex flex-col md:flex-row gap-3 md:items-center justify-between mb-6">
+          <div className="flex flex-col gap-3 mb-6">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Cerca cliente..."
                 className="w-full pl-9 pr-4 py-2 border border-gray-300 text-sm focus:outline-none focus:border-brand-black"
               />
             </div>
-            <select
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value as 'all' | ClientStatus)}
-              className="border border-gray-300 px-4 py-2 text-sm bg-white"
-            >
-              <option value="all">Tutti gli stati</option>
-              {STATUS_OPTIONS.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
+            <div className="flex flex-wrap gap-2">
+              <select value={stageFilter} onChange={(e) => setStageFilter(e.target.value as 'all' | ClientStage)} className="border border-gray-300 px-3 py-2 text-sm bg-white">
+                <option value="all">Tutti gli stage</option>
+                {STAGE_OPTIONS.map((o) => (<option key={o} value={o}>{STAGE_LABELS[o]}</option>))}
+              </select>
+              <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)} className="border border-gray-300 px-3 py-2 text-sm bg-white">
+                <option value="all">Tutte le fonti</option>
+                {uniqueSources.map((s) => (<option key={s} value={s}>{s}</option>))}
+              </select>
+              <select value={tagFilter} onChange={(e) => setTagFilter(e.target.value)} className="border border-gray-300 px-3 py-2 text-sm bg-white">
+                <option value="all">Tutti i tag</option>
+                {availableTags.map((t) => (<option key={t.id} value={t.name}>{t.name}</option>))}
+              </select>
+              <label className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-200 bg-white">
+                <input type="checkbox" checked={siteOnlyFilter} onChange={(e) => setSiteOnlyFilter(e.target.checked)} className="w-4 h-4" />
+                Solo registrati
+              </label>
+            </div>
           </div>
 
           <div className="space-y-4">
@@ -366,7 +571,11 @@ export default function CRM() {
               </div>
             ) : (
               filteredClients.map((client) => (
-                <div key={client.id} className="border border-gray-100 bg-white p-5 flex flex-col md:flex-row md:items-start gap-4">
+                <div
+                  key={client.id}
+                  onClick={() => selectClient(client)}
+                  className={`border bg-white p-5 flex flex-col md:flex-row md:items-start gap-4 cursor-pointer transition-colors ${selectedClient?.id === client.id ? 'border-brand-black ring-1 ring-brand-black' : 'border-gray-100 hover:border-gray-300'}`}
+                >
                   <div className="w-12 h-12 rounded-full bg-brand-black text-white flex items-center justify-center shrink-0">
                     <BadgeCheck className="w-5 h-5" />
                   </div>
@@ -381,18 +590,18 @@ export default function CRM() {
                         </div>
                       </div>
                       <span className="inline-flex text-[10px] uppercase tracking-widest bg-gray-100 px-2 py-1">
-                        {client.status}
+                        {STAGE_LABELS[client.stage] || client.stage}
                       </span>
                     </div>
                     {client.source && <p className="text-xs uppercase tracking-widest text-gray-400 mt-3">Fonte: {client.source}</p>}
-                    {client.notes && <p className="text-sm text-gray-600 mt-3 leading-relaxed">{client.notes}</p>}
+                    {client.notes && <p className="text-sm text-gray-600 mt-3 leading-relaxed line-clamp-2">{client.notes}</p>}
                   </div>
                   <div className="flex md:flex-col gap-2">
-                    <button onClick={() => startEdit(client)} className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 border border-blue-200 flex items-center gap-1">
+                    <button onClick={(e) => { e.stopPropagation(); startEdit(client); }} className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 border border-blue-200 flex items-center gap-1">
                       <Pencil className="w-4 h-4" />
                       Modifica
                     </button>
-                    <button onClick={() => deleteClient(client.id)} className="text-xs bg-red-50 hover:bg-red-100 text-red-700 px-3 py-2 border border-red-200 flex items-center gap-1">
+                    <button onClick={(e) => { e.stopPropagation(); deleteClient(client.id); }} className="text-xs bg-red-50 hover:bg-red-100 text-red-700 px-3 py-2 border border-red-200 flex items-center gap-1">
                       <Trash2 className="w-4 h-4" />
                       Elimina
                     </button>
@@ -403,6 +612,168 @@ export default function CRM() {
           </div>
         </div>
       </div>
+
+      {selectedClient && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/30" onClick={closeDetail} />
+          <div className="relative w-full max-w-xl bg-white h-full overflow-y-auto shadow-xl">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
+              <h2 className="text-xl font-serif">{selectedClient.name}</h2>
+              <button onClick={closeDetail} className="p-2 hover:bg-gray-100"><X className="w-5 h-5" /></button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">Stage</p>
+                  <select
+                    value={selectedClient.stage}
+                    onChange={(e) => changeStage(selectedClient.id, e.target.value as ClientStage)}
+                    className="w-full border border-gray-300 p-2 text-sm bg-white"
+                  >
+                    {STAGE_OPTIONS.map((o) => (<option key={o} value={o}>{STAGE_LABELS[o]}</option>))}
+                  </select>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">Prossimo follow-up</p>
+                  <input
+                    type="date"
+                    value={selectedClient.nextFollowUpAt ? selectedClient.nextFollowUpAt.toISOString().split('T')[0] : ''}
+                    onChange={(e) => scheduleFollowUp(selectedClient.id, e.target.value)}
+                    className="w-full border border-gray-300 p-2 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">Contatto</p>
+                <div className="space-y-2 text-sm">
+                  {selectedClient.email && <div className="flex items-center gap-2"><Mail className="w-4 h-4 text-gray-400" />{selectedClient.email}</div>}
+                  {selectedClient.phone && <div className="flex items-center gap-2"><Phone className="w-4 h-4 text-gray-400" />{selectedClient.phone}</div>}
+                  {selectedClient.company && <div className="flex items-center gap-2"><Building2 className="w-4 h-4 text-gray-400" />{selectedClient.company}</div>}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="border p-3">
+                  <p className="text-xs uppercase tracking-widest text-gray-500">Ordini</p>
+                  <p className="text-xl font-serif">{selectedClient.totalOrders}</p>
+                </div>
+                <div className="border p-3">
+                  <p className="text-xs uppercase tracking-widest text-gray-500">Speso</p>
+                  <p className="text-xl font-serif">{selectedClient.totalSpent}</p>
+                </div>
+                <div className="border p-3">
+                  <p className="text-xs uppercase tracking-widest text-gray-500">Note</p>
+                  <p className="text-xl font-serif">{selectedClient.notesCount}</p>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button onClick={() => setShowNoteModal(true)} className="flex-1 flex items-center justify-center gap-2 border border-gray-200 px-3 py-2 text-xs uppercase hover:bg-gray-50">
+                  <FileText className="w-4 h-4" />
+                  Nota
+                </button>
+                <button onClick={() => setShowTaskModal(true)} className="flex-1 flex items-center justify-center gap-2 border border-gray-200 px-3 py-2 text-xs uppercase hover:bg-gray-50">
+                  <CheckCircle2 className="w-4 h-4" />
+                  Task
+                </button>
+              </div>
+
+              <div>
+                <h3 className="text-xs uppercase tracking-widest text-gray-500 mb-3">Task</h3>
+                <div className="space-y-2">
+                  {tasks.length === 0 ? (
+                    <p className="text-sm text-gray-400">Nessun task</p>
+                  ) : (
+                    tasks.map((task) => (
+                      <div key={task.id} className="flex items-start gap-3 p-3 bg-gray-50">
+                        <button onClick={() => task.status !== 'completed' && completeTask(task.id)} className="mt-0.5">
+                          {task.status === 'completed' ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <Circle className="w-4 h-4 text-gray-300" />}
+                        </button>
+                        <div className="flex-1">
+                          <p className={`text-sm ${task.status === 'completed' ? 'line-through text-gray-400' : ''}`}>{task.title}</p>
+                          {task.dueAt && <p className="text-xs text-gray-400 mt-1">Scadenza: {task.dueAt.toLocaleDateString()}</p>}
+                        </div>
+                        <button onClick={() => removeTask(task.id)} className="text-red-500 hover:text-red-700">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-xs uppercase tracking-widest text-gray-500 mb-3">Attivita</h3>
+                <div className="space-y-3 max-h-64 overflow-y-auto">
+                  {activities.length === 0 ? (
+                    <p className="text-sm text-gray-400">Nessuna attivita</p>
+                  ) : (
+                    activities.map((act) => (
+                      <div key={act.id} className="border-l-2 border-gray-200 pl-4">
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <Activity className="w-3 h-3" />
+                          <span>{act.type}</span>
+                          <span>-</span>
+                          <span>{act.createdAt ? act.createdAt.toLocaleString() : ''}</span>
+                        </div>
+                        <p className="text-sm mt-1">{act.title}</p>
+                        {act.body && <p className="text-xs text-gray-500 mt-1">{act.body}</p>}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showNoteModal && selectedClient && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setShowNoteModal(false)} />
+          <div className="relative bg-white p-6 w-full max-w-md">
+            <h3 className="text-lg font-serif mb-4">Aggiungi Nota</h3>
+            <textarea
+              value={newNoteBody}
+              onChange={(e) => setNewNoteBody(e.target.value)}
+              rows={4}
+              className="w-full border border-gray-300 p-2 text-sm mb-4"
+              placeholder="Testo della nota..."
+            />
+            <div className="flex gap-2">
+              <button onClick={() => setShowNoteModal(false)} className="flex-1 border border-gray-200 py-2 text-xs uppercase">Annulla</button>
+              <button onClick={addNote} className="flex-1 bg-brand-black text-white py-2 text-xs uppercase">Salva</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTaskModal && selectedClient && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setShowTaskModal(false)} />
+          <div className="relative bg-white p-6 w-full max-w-md">
+            <h3 className="text-lg font-serif mb-4">Crea Task</h3>
+            <input
+              value={newTaskTitle}
+              onChange={(e) => setNewTaskTitle(e.target.value)}
+              className="w-full border border-gray-300 p-2 text-sm mb-4"
+              placeholder="Titolo del task..."
+            />
+            <input
+              type="date"
+              value={newTaskDueAt}
+              onChange={(e) => setNewTaskDueAt(e.target.value)}
+              className="w-full border border-gray-300 p-2 text-sm mb-4"
+            />
+            <div className="flex gap-2">
+              <button onClick={() => setShowTaskModal(false)} className="flex-1 border border-gray-200 py-2 text-xs uppercase">Annulla</button>
+              <button onClick={addTask} className="flex-1 bg-brand-black text-white py-2 text-xs uppercase">Crea</button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
