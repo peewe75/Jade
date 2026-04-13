@@ -37,6 +37,18 @@ function getInitialFormData(): ClientFormData {
   };
 }
 
+function parseDateInput(value: string): Date {
+  return new Date(`${value}T12:00:00`);
+}
+
+function formatDateInput(value?: Date): string {
+  if (!value) return '';
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export default function CRM() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -182,7 +194,7 @@ export default function CRM() {
       stage: client.stage || 'new_lead',
       notes: client.notes || '',
       tags: client.tags || [],
-      nextFollowUpAt: client.nextFollowUpAt ? client.nextFollowUpAt.toISOString().split('T')[0] : '',
+      nextFollowUpAt: formatDateInput(client.nextFollowUpAt),
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -216,12 +228,22 @@ export default function CRM() {
         stage: form.stage,
         tags: form.tags.length > 0 ? form.tags : null,
         notes: form.notes.trim() || null,
-        nextFollowUpAt: form.nextFollowUpAt ? Timestamp.fromDate(new Date(form.nextFollowUpAt)) : null,
+        nextFollowUpAt: form.nextFollowUpAt ? Timestamp.fromDate(parseDateInput(form.nextFollowUpAt)) : null,
         updatedAt: serverTimestamp(),
       };
 
       if (editingClient) {
         await updateDoc(doc(db, 'clients', editingClient.id), payload);
+        if (user) {
+          await createActivityFn(editingClient.id, 'profile_updated', 'Profilo cliente aggiornato', user.uid);
+        }
+        if (selectedClient?.id === editingClient.id) {
+          setSelectedClient({
+            ...selectedClient,
+            ...payload,
+            nextFollowUpAt: form.nextFollowUpAt ? parseDateInput(form.nextFollowUpAt) : undefined,
+          });
+        }
       } else {
         const clientDoc = await addDoc(collection(db, 'clients'), {
           ...payload,
@@ -345,12 +367,17 @@ export default function CRM() {
   const scheduleFollowUp = async (clientId: string, date: string) => {
     if (!date) return;
     try {
+      const followUpDate = parseDateInput(date);
       await updateDoc(doc(db, 'clients', clientId), {
-        nextFollowUpAt: Timestamp.fromDate(new Date(date)),
+        nextFollowUpAt: Timestamp.fromDate(followUpDate),
         updatedAt: serverTimestamp(),
       });
+      if (user) {
+        await createActivityFn(clientId, 'profile_updated', 'Follow-up pianificato', user.uid, date);
+      }
       if (selectedClient?.id === clientId) {
-        setSelectedClient({ ...selectedClient, nextFollowUpAt: new Date(date) });
+        setSelectedClient({ ...selectedClient, nextFollowUpAt: followUpDate });
+        fetchClientDetails(clientId);
       }
       fetchClients();
     } catch (error) {
@@ -638,7 +665,7 @@ export default function CRM() {
                   <p className="text-xs uppercase tracking-widest text-gray-500 mb-1">Prossimo follow-up</p>
                   <input
                     type="date"
-                    value={selectedClient.nextFollowUpAt ? selectedClient.nextFollowUpAt.toISOString().split('T')[0] : ''}
+                    value={formatDateInput(selectedClient.nextFollowUpAt)}
                     onChange={(e) => scheduleFollowUp(selectedClient.id, e.target.value)}
                     className="w-full border border-gray-300 p-2 text-sm"
                   />
