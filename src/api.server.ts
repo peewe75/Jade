@@ -113,11 +113,11 @@ router.post('/vto/generate', async (req, res) => {
       return res.status(400).json({ error: "Prompt immagine richiesto." });
     }
 
-    // List of fast, verified image generation models on OpenRouter
+    // List of high-quality image generation models on OpenRouter
     const modelsToTry = [
-      "google/gemini-2.5-flash-image", // Fast, highly reliable
-      "black-forest-labs/flux.2-klein-4b", // Fast, but has strict API requirements
-      "openai/gpt-5-image-mini" // High quality fallback
+      "google/gemini-3.1-flash-image-preview", // Best quality/speed ratio from Google
+      "black-forest-labs/flux.2-pro", // Top tier quality from Black Forest Labs
+      "openai/gpt-5-image" // Best quality from OpenAI
     ];
 
     let lastError = null;
@@ -140,8 +140,7 @@ router.post('/vto/generate', async (req, res) => {
             // Include 'text' in modalities to ensure broadly compatible routing
             modalities: ["image", "text"]
           }),
-          // Set a shorter timeout for fallback to trigger quickly
-          signal: AbortSignal.timeout(15000) 
+          // Removed manual AbortSignal to let the models take the time they need (up to Netlify's 30s limit)
         });
 
         if (!response.ok) {
