@@ -14,6 +14,8 @@ interface ProductData {
   images: string[];
   category: string;
   sizes?: string[];
+  detailsAndCare?: string;
+  shippingAndReturns?: string;
 }
 
 export default function Product() {
@@ -146,6 +148,11 @@ export default function Product() {
   const galleryImages = displayImages.slice(1);
 
   const availableSizes = displayProduct.sizes || ['XS', 'S', 'M', 'L', 'XL'];
+  const detailsAndCareItems = (displayProduct.detailsAndCare || '')
+    .split('\n')
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const shippingAndReturnsText = displayProduct.shippingAndReturns || '';
 
   return (
     <main className="flex-grow pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
@@ -273,13 +280,21 @@ export default function Product() {
                   animate={{ height: 'auto', opacity: 1 }}
                   className="pb-4 text-sm text-gray-600 leading-relaxed"
                 >
-                  <ul className="list-disc pl-4 space-y-1">
-                    <li>95% Silk, 5% Elastane</li>
-                    <li>Cowl neckline</li>
-                    <li>Adjustable spaghetti straps</li>
-                    <li>Dry clean only</li>
-                    <li>Made in Italy</li>
-                  </ul>
+                  {detailsAndCareItems.length > 0 ? (
+                    <ul className="list-disc pl-4 space-y-1">
+                      {detailsAndCareItems.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <ul className="list-disc pl-4 space-y-1">
+                      <li>95% Silk, 5% Elastane</li>
+                      <li>Cowl neckline</li>
+                      <li>Adjustable spaghetti straps</li>
+                      <li>Dry clean only</li>
+                      <li>Made in Italy</li>
+                    </ul>
+                  )}
                 </motion.div>
               )}
             </div>
@@ -299,8 +314,14 @@ export default function Product() {
                   animate={{ height: 'auto', opacity: 1 }}
                   className="pb-4 text-sm text-gray-600 leading-relaxed"
                 >
-                  <p className="mb-2"><strong>Free standard shipping</strong> on all orders over €150.</p>
-                  <p>Returns are accepted within 14 days of delivery. Items must be unworn with all tags attached.</p>
+                  {shippingAndReturnsText ? (
+                    <p className="whitespace-pre-line">{shippingAndReturnsText}</p>
+                  ) : (
+                    <>
+                      <p className="mb-2"><strong>Free standard shipping</strong> on all orders over €150.</p>
+                      <p>Returns are accepted within 14 days of delivery. Items must be unworn with all tags attached.</p>
+                    </>
+                  )}
                 </motion.div>
               )}
             </div>

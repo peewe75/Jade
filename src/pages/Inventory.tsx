@@ -28,6 +28,8 @@ export default function Inventory() {
   const [category, setCategory] = useState('');
   const [productImages, setProductImages] = useState<string[]>(['', '', '', '']);
   const [description, setDescription] = useState('');
+  const [detailsAndCare, setDetailsAndCare] = useState('');
+  const [shippingAndReturns, setShippingAndReturns] = useState('');
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   
   // Category Form state
@@ -143,6 +145,8 @@ export default function Inventory() {
     setCategory('');
     setProductImages(['', '', '', '']);
     setDescription('');
+    setDetailsAndCare('');
+    setShippingAndReturns('');
     setSelectedSizes([]);
     setFeatured(false);
     setOrder(null);
@@ -261,6 +265,8 @@ export default function Inventory() {
         category,
         images: images.slice(0, 4),
         description: description || 'Luxury fashion piece by The Blondes Brand.',
+        detailsAndCare: detailsAndCare || '',
+        shippingAndReturns: shippingAndReturns || '',
         tags: editingProduct ? (editingProduct.tags || ['New In']) : ['New In'],
         sizes: selectedSizes.length > 0 ? selectedSizes : ['One Size'],
         featured: Boolean(featured),
@@ -303,6 +309,8 @@ export default function Inventory() {
     }
     setProductImages(nextImages);
     setDescription(product.description || '');
+    setDetailsAndCare(product.detailsAndCare || '');
+    setShippingAndReturns(product.shippingAndReturns || '');
     setSelectedSizes(product.sizes || []);
     setFeatured(product.featured || false);
     setOrder(product.featuredOrder ?? null);
@@ -701,6 +709,29 @@ export default function Inventory() {
               <div>
                 <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Descrizione</label>
                 <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} className="w-full border border-gray-300 p-2 text-sm"></textarea>
+              </div>
+
+              <div>
+                <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Details &amp; Care</label>
+                <textarea
+                  value={detailsAndCare}
+                  onChange={e => setDetailsAndCare(e.target.value)}
+                  rows={5}
+                  className="w-full border border-gray-300 p-2 text-sm"
+                  placeholder={"Una riga per punto, ad esempio:\n95% Silk, 5% Elastane\nDry clean only\nMade in Italy"}
+                ></textarea>
+                <p className="mt-1 text-[10px] uppercase tracking-widest text-gray-400">Una riga = un bullet nella pagina prodotto</p>
+              </div>
+
+              <div>
+                <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Shipping &amp; Returns</label>
+                <textarea
+                  value={shippingAndReturns}
+                  onChange={e => setShippingAndReturns(e.target.value)}
+                  rows={4}
+                  className="w-full border border-gray-300 p-2 text-sm"
+                  placeholder="Testo libero per spedizioni, resi e condizioni."
+                ></textarea>
               </div>
 
               <hr className="border-gray-200 my-4" />

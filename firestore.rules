@@ -64,10 +64,12 @@ service cloud.firestore {
     }
 
     function isValidProduct(data) {
-      return hasOnlyAllowedFields(['name', 'price', 'description', 'images', 'category', 'tags', 'sizes', 'featured', 'featuredOrder', 'createdAt', 'updatedAt']) &&
+      return hasOnlyAllowedFields(['name', 'price', 'description', 'detailsAndCare', 'shippingAndReturns', 'images', 'category', 'tags', 'sizes', 'featured', 'featuredOrder', 'createdAt', 'updatedAt']) &&
              data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
              data.price is number && data.price >= 0 &&
              (!('description' in data) || (data.description is string && data.description.size() <= 2000)) &&
+             (!('detailsAndCare' in data) || (data.detailsAndCare is string && data.detailsAndCare.size() <= 3000)) &&
+             (!('shippingAndReturns' in data) || (data.shippingAndReturns is string && data.shippingAndReturns.size() <= 3000)) &&
              data.images is list && data.images.size() > 0 && data.images.size() <= 10 &&
              data.category is string && data.category.size() > 0 && data.category.size() <= 50 &&
              (!('tags' in data) || (data.tags is list && data.tags.size() <= 20)) &&

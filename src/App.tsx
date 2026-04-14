@@ -7,6 +7,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import ScrollToTop from './components/ScrollToTop';
 import Home from './pages/Home';
 import Product from './pages/Product';
 import About from './pages/About';
@@ -20,6 +21,7 @@ export default function App() {
   return (
     <AuthProvider>
       <Router>
+        <ScrollToTop />
         <div className="min-h-screen flex flex-col">
           <Navbar />
           <Routes>
@@ -38,7 +40,6 @@ export default function App() {
     </AuthProvider>
   );
 }
-
 
 
 
