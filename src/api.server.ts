@@ -154,7 +154,8 @@ router.post('/vto/generate', async (req, res) => {
       let finalImageUrl = typeof imageData === 'string' ? imageData : imageData?.url;
 
       if (!finalImageUrl) {
-          throw new Error("Il modello ha restituito una risposta vuota o non valida.");
+          console.error("OpenRouter Response Data:", JSON.stringify(data, null, 2));
+          throw new Error(`OpenRouter ha risposto con successo ma senza immagine. Risposta raw: ${JSON.stringify(data)}`);
       }
 
       // Normalize and extract valid image URL or Base64 format
