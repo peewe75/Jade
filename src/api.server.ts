@@ -32,15 +32,23 @@ const router = express.Router();
  */
 router.post('/vto/analyze', upload.single('userImage'), async (req, res) => {
   try {
+    console.log("VTO Analyze Request Body:", JSON.stringify(req.body, null, 2));
+    console.log("VTO Analyze File Info:", req.file ? {
+      fieldname: req.file.fieldname,
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size
+    } : "MISSING FILE");
+
     const { productImageUrl, productName, productCategory } = req.body;
     const userImageFile = req.file;
 
     if (!userImageFile) {
-      return res.status(400).json({ error: "Foto utente richiesta." });
+      return res.status(400).json({ error: "Foto utente richiesta (file mancante)." });
     }
 
     if (!productImageUrl) {
-      return res.status(400).json({ error: "URL immagine prodotto richiesto." });
+      return res.status(400).json({ error: "URL immagine prodotto richiesto (campo mancante)." });
     }
 
     const userBase64 = userImageFile.buffer.toString('base64');

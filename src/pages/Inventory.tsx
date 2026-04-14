@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type ChangeEvent, type DragEvent, type FormEvent } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { collection, addDoc, serverTimestamp, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { motion } from 'motion/react';
@@ -457,14 +457,14 @@ export default function Inventory() {
           <h1 className="text-3xl font-serif mb-2">Magazzino</h1>
           <p className="text-gray-500 text-sm">Gestisci i prodotti, le categorie e le immagini del catalogo.</p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <a href="/admin" className="border border-gray-200 px-4 py-2 text-xs uppercase tracking-widest hover:border-brand-black transition-colors flex items-center gap-2">
+            <Link to="/admin" className="border border-gray-200 px-4 py-2 text-xs uppercase tracking-widest hover:border-brand-black transition-colors flex items-center gap-2">
               <Home className="w-4 h-4" />
               Dashboard
-            </a>
-            <a href="/admin/crm" className="border border-gray-200 px-4 py-2 text-xs uppercase tracking-widest hover:border-brand-black transition-colors flex items-center gap-2">
+            </Link>
+            <Link to="/admin/crm" className="border border-gray-200 px-4 py-2 text-xs uppercase tracking-widest hover:border-brand-black transition-colors flex items-center gap-2">
               <Users className="w-4 h-4" />
               CRM
-            </a>
+            </Link>
             <a href="#products" className="border border-gray-200 px-4 py-2 text-xs uppercase tracking-widest hover:border-brand-black transition-colors flex items-center gap-2">
               <LayoutGrid className="w-4 h-4" />
               Prodotti

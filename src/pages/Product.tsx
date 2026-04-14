@@ -87,10 +87,11 @@ export default function Product() {
     try {
       // Step 1: Analyze images to get a prompt
       const formData = new FormData();
-      formData.append('userImage', vtoFile);
-      formData.append('productImageUrl', displayProduct.images[0]);
+      // Important: Add text fields BEFORE the file for some body parsers
+      formData.append('productImageUrl', displayProduct.images?.[0] || displayProduct.image || '');
       formData.append('productName', displayProduct.name);
-      formData.append('productCategory', displayProduct.category);
+      formData.append('productCategory', displayProduct.category || 'Clothing');
+      formData.append('userImage', vtoFile);
 
       const analyzeResponse = await fetch('/api/vto/analyze', {
         method: 'POST',
