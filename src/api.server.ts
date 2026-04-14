@@ -115,87 +115,90 @@ router.post('/vto/generate', async (req, res) => {
 
     // L'errore Sandbox.Timedout (30.00s) obbliga ad usare SOLO i modelli più veloci in assoluto
     // I modelli Pro o di altissima qualità sforano spesso i 30 secondi e vengono uccisi da Netlify.
-    const modelsToTry = [
-      "google/gemini-2.5-flash-image", // Estremamente veloce
-      "black-forest-labs/flux.2-klein-4b", // Altissima velocità
-      "google/imagen-3-fast" // Fallback ultra-rapido
+    // Passiamo un array "models" in modo che sia OpenRouter (server-side) a fare il fallback
+    // se il primo modello fallisce o è sovraccarico. Così risparmiamo secondi preziosi!
+    const modelsList = [
+      "google/gemini-2.5-flash-image",
+      "google/imagen-3-fast",
+      "black-forest-labs/flux.2-klein-4b"
     ];
 
-    let lastError = null;
+    try {
+      console.log(`Attempting image generation via OpenRouter Native Fallback: ${modelsList.join(', ')}`);
+      
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://theblondes.it",
+          "X-Title": "The Blondes CRM",
+        },
+        body: JSON.stringify({
+          models: modelsList, // NATIVE FALLBACK: OpenRouter handles the queue
+          messages: [{ role: "user", content: imagenPrompt }],
+          modalities: ["image"] 
+        }),
+        // Diamo il timer massimo per restare entro il kill switch dei 30s di Netlify.
+        // Se arriva a 28s, forziamo uno stop pulito così non dà "Sandbox.Timedout" ma dà errore 500 elegante.
+        signal: AbortSignal.timeout(28000)
+      });
 
-    for (const modelId of modelsToTry) {
-      try {
-        console.log(`Attempting image generation with model: ${modelId}`);
-        
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://theblondes.it",
-            "X-Title": "The Blondes CRM",
-          },
-          body: JSON.stringify({
-            model: modelId,
-            messages: [{ role: "user", content: imagenPrompt }],
-            // Include 'text' in modalities to ensure broadly compatible routing
-            modalities: ["image", "text"]
-          }),
-          // Removed manual AbortSignal to let the models take the time they need (up to Netlify's 30s limit)
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          console.warn(`Model ${modelId} failed:`, errorData.error?.message || response.statusText);
-          lastError = errorData.error?.message || `Status ${response.status}`;
-          continue; // Try next model
-        }
-
-        const data = await response.json();
-        const imageData = data.choices?.[0]?.message?.images?.[0] || data.choices?.[0]?.message?.content;
-        let finalImageUrl = typeof imageData === 'string' ? imageData : imageData?.url;
-
-        if (finalImageUrl) {
-          // Normalize and extract valid image URL or Base64 format
-          if (!finalImageUrl.startsWith('http') && !finalImageUrl.startsWith('data:')) {
-            // Se è una stringa in puro Base64, aggiungiamo il prefisso
-            // Se invece è un markdown ![image](URL), usiamo regex per estrarlo
-            const markdownImgMatch = finalImageUrl.match(/!\[.*?\]\((https?:\/\/[^\s\)]+)\)/);
-            if (markdownImgMatch && markdownImgMatch[1]) {
-              finalImageUrl = markdownImgMatch[1];
-            } else {
-              const urlMatch = finalImageUrl.match(/(https?:\/\/[^\s\)]+)/);
-              if (urlMatch && urlMatch[1]) {
-                finalImageUrl = urlMatch[1];
-              } else if (finalImageUrl.length > 500) {
-                // Heuristic: If it's a huge string and not a URL, it's likely raw Base64 Data
-                finalImageUrl = `data:image/jpeg;base64,${finalImageUrl}`;
-              } else {
-                 console.warn(`Model ${modelId} returned unexplained string:`, finalImageUrl);
-                 continue; // Modello ha restituito testo incomprensibile, passiamo al prossimo
-              }
-            }
-          }
-
-          console.log(`Successfully generated image with model: ${modelId}`);
-          return res.json({ success: true, imageUrl: finalImageUrl, modelUsed: modelId });
-        }
-      } catch (err: any) {
-        console.warn(`Error with model ${modelId}:`, err.message);
-        lastError = err.message;
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.warn(`All routed models failed:`, errorData);
+        return res.status(500).json({ error: `Generazione fallita sul provider. Errore: ${errorData.error?.message || response.statusText}` });
       }
+
+      const data = await response.json();
+      const imageData = data.choices?.[0]?.message?.images?.[0] || data.choices?.[0]?.message?.content;
+      let finalImageUrl = typeof imageData === 'string' ? imageData : imageData?.url;
+
+      if (!finalImageUrl) {
+          throw new Error("Il modello ha restituito una risposta vuota o non valida.");
+      }
+
+      // Normalize and extract valid image URL or Base64 format
+      if (!finalImageUrl.startsWith('http') && !finalImageUrl.startsWith('data:')) {
+        const markdownImgMatch = finalImageUrl.match(/!\[.*?\]\((https?:\/\/[^\s\)]+)\)/);
+        if (markdownImgMatch && markdownImgMatch[1]) {
+          finalImageUrl = markdownImgMatch[1];
+        } else {
+          const urlMatch = finalImageUrl.match(/(https?:\/\/[^\s\)]+)/);
+          if (urlMatch && urlMatch[1]) {
+            finalImageUrl = urlMatch[1];
+          } else if (finalImageUrl.length > 500) {
+            finalImageUrl = `data:image/jpeg;base64,${finalImageUrl}`;
+          } else {
+             throw new Error(`Risposta AI incomprensibile (né url né immagine base64): ${finalImageUrl.substring(0, 100)}...`);
+          }
+        }
+      }
+
+      const modelUsedDataResult = data.model || modelsList[0];
+      console.log(`Successfully generated image. Final model reported by OpenRouter: ${modelUsedDataResult}`);
+      
+      return res.json({ success: true, imageUrl: finalImageUrl, modelUsed: modelUsedDataResult });
+
+    } catch (err: any) {
+      console.error(`VTO Generation Block Error:`, err.message);
+      
+      if (err.name === 'TimeoutError' || err.message.includes('timeout') || err.message.includes('aborted')) {
+          return res.status(500).json({ 
+              error: "Il modello sta impiegando troppo tempo a generare l'immagine. Netlify ha un limite di 30 secondi. Riprova tra poco." 
+          });
+      }
+
+      return res.status(500).json({ error: err.message });
     }
 
-    // If all models fail
-    res.status(500).json({ 
-      error: `Tutti i tentativi di generazione sono falliti. Ultimo errore: ${lastError}` 
-    });
-
-  } catch (error: any) {
-    console.error("VTO Generate System Error:", error);
-    res.status(500).json({ error: error.message || "Errore critico durante la generazione." });
-  }
-});
+    } catch (error: any) {
+      console.error("VTO Generate System Error:", error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: error.message || "Errore critico durante la generazione." });
+      }
+    }
+  });
 
 app.use("/api", router);
 app.use("/.netlify/functions/api", router);
