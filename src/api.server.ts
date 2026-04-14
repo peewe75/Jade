@@ -112,9 +112,9 @@ router.post('/vto/generate', async (req, res) => {
       return res.status(400).json({ error: "Prompt immagine richiesto." });
     }
 
-    // Generate the final image using a faster model (Flux Schnell)
+    // Generate the final image using a faster model (Flux.2 Klein)
     const generateResponse = await openai.chat.completions.create({
-      model: "black-forest-labs/flux-schnell", 
+      model: "black-forest-labs/flux.2-klein-4b", 
       messages: [
         {
           role: "user",
