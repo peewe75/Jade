@@ -8,6 +8,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ScrollToTop from './components/ScrollToTop';
+import SocialBar from './components/SocialBar';
 import Home from './pages/Home';
 import Product from './pages/Product';
 import About from './pages/About';
@@ -24,6 +25,7 @@ export default function App() {
         <ScrollToTop />
         <div className="min-h-screen flex flex-col">
           <Navbar />
+          <SocialBar />
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/shop" element={<Shop />} />

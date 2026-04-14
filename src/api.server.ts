@@ -118,12 +118,13 @@ router.post('/vto/generate', async (req, res) => {
     // Passiamo un array "models" in modo che sia OpenRouter (server-side) a fare il fallback
     // se il primo modello fallisce o è sovraccarico. Così risparmiamo secondi preziosi!
     const modelsList = [
-      "black-forest-labs/flux.2-klein-4b",
-      "black-forest-labs/flux.2-pro"
+      "black-forest-labs/flux-schnell", 
+      "black-forest-labs/flux-dev",
+      "google/gemini-2.0-flash-001" // High-speed fallback
     ];
 
     try {
-      console.log(`Attempting image generation via OpenRouter Native Fallback: ${modelsList.join(', ')}`);
+      console.log(`Attempting image generation via OpenRouter: ${modelsList[0]}`);
       
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
@@ -134,12 +135,17 @@ router.post('/vto/generate', async (req, res) => {
           "X-Title": "The Blondes CRM",
         },
         body: JSON.stringify({
-          models: modelsList, // NATIVE FALLBACK: OpenRouter handles the queue
-          messages: [{ role: "user", content: imagenPrompt }],
-          modalities: ["image"] 
+          model: "black-forest-labs/flux-schnell", 
+          messages: [
+            { 
+              role: "user", 
+              content: [
+                { type: "text", text: imagenPrompt }
+              ] 
+            }
+          ],
+          modalities: ["image"]
         }),
-        // Diamo il timer massimo per restare entro il kill switch dei 30s di Netlify.
-        // Se arriva a 28s, forziamo uno stop pulito così non dà "Sandbox.Timedout" ma dà errore 500 elegante.
         signal: AbortSignal.timeout(28000)
       });
 
