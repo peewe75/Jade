@@ -66,26 +66,44 @@ router.post('/vto/analyze', async (req, res) => {
 
     const userMimeType = userMimeTypeRaw || 'image/jpeg';
 
-    // Ricostruisci URL assoluto se relativo
-    let absoluteProductUrl = productImageUrl;
-    if (!/^https?:\/\//i.test(productImageUrl)) {
-      const protocol = (req.headers['x-forwarded-proto'] as string) || 'https';
-      const host = req.headers['host'];
-      const cleanPath = productImageUrl.startsWith('/') ? productImageUrl.slice(1) : productImageUrl;
-      absoluteProductUrl = `${protocol}://${host}/${cleanPath}`;
-    }
+    // Il productImageUrl può essere:
+    //  (a) un data URL inline (i prodotti caricati dall'admin sono salvati così in Firestore)
+    //  (b) un URL HTTPS (es. picsum, Firebase Storage)
+    //  (c) un path relativo (raro)
+    let productBase64: string;
+    let productMimeType: string;
 
-    console.log(`VTO Analyze: fetching product image from ${absoluteProductUrl}`);
+    if (productImageUrl.startsWith('data:')) {
+      // Data URL: parsa inline senza fare fetch
+      const match = productImageUrl.match(/^data:([^;,]+)?(?:;base64)?,(.*)$/);
+      if (!match) {
+        return res.status(400).json({ error: "data URL prodotto non valido." });
+      }
+      productMimeType = match[1] || 'image/jpeg';
+      productBase64 = match[2] || '';
+      if (!productBase64) {
+        return res.status(400).json({ error: "Immagine prodotto vuota." });
+      }
+    } else {
+      let absoluteProductUrl = productImageUrl;
+      if (!/^https?:\/\//i.test(productImageUrl)) {
+        const protocol = (req.headers['x-forwarded-proto'] as string) || 'https';
+        const host = req.headers['host'];
+        const cleanPath = productImageUrl.startsWith('/') ? productImageUrl.slice(1) : productImageUrl;
+        absoluteProductUrl = `${protocol}://${host}/${cleanPath}`;
+      }
+      console.log(`VTO Analyze: fetching product image from ${absoluteProductUrl.slice(0, 120)}`);
 
-    const productResponse = await fetchWithTimeout(absoluteProductUrl, EXTERNAL_FETCH_TIMEOUT_MS);
-    if (!productResponse.ok) {
-      return res.status(502).json({
-        error: `Impossibile scaricare l'immagine del prodotto (${productResponse.status}).`,
-      });
+      const productResponse = await fetchWithTimeout(absoluteProductUrl, EXTERNAL_FETCH_TIMEOUT_MS);
+      if (!productResponse.ok) {
+        return res.status(502).json({
+          error: `Impossibile scaricare l'immagine del prodotto (${productResponse.status}).`,
+        });
+      }
+      const productBuffer = Buffer.from(await productResponse.arrayBuffer());
+      productMimeType = productResponse.headers.get('content-type') || 'image/jpeg';
+      productBase64 = productBuffer.toString('base64');
     }
-    const productBuffer = Buffer.from(await productResponse.arrayBuffer());
-    const productMimeType = productResponse.headers.get('content-type') || 'image/jpeg';
-    const productBase64 = productBuffer.toString('base64');
 
     console.log(`VTO Analyze: starting Gemini 2.0 Flash...`);
 
