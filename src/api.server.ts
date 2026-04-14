@@ -118,9 +118,8 @@ router.post('/vto/generate', async (req, res) => {
     // Passiamo un array "models" in modo che sia OpenRouter (server-side) a fare il fallback
     // se il primo modello fallisce o è sovraccarico. Così risparmiamo secondi preziosi!
     const modelsList = [
-      "google/gemini-2.5-flash-image",
-      "google/imagen-3-fast",
-      "black-forest-labs/flux.2-klein-4b"
+      "black-forest-labs/flux-schnell", // Fast image generation on OpenRouter
+      "black-forest-labs/flux-dev"
     ];
 
     try {
