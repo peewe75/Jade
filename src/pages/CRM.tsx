@@ -9,7 +9,7 @@ import { STAGE_OPTIONS, STAGE_LABELS } from '../types/crm';
 import { convertTimestamp, createActivity as createActivityFn, createTask as createTaskFn, updateTask as updateTaskFn, deleteTask as deleteTaskFn, getAllTags, getClientActivities, getClientTasks, importUsersToClients, getAllUsers, updateClientOwner, updateClientTags, isOverdue, isDueToday, type UserRecord } from '../lib/crm';
 import { Timestamp } from 'firebase/firestore';
 
-const ADMIN_EMAILS = ['mmalinverno76@gmail.com', 'peewe75@gmail.com', 'mmalinverno@gmail.com'];
+const ADMIN_EMAILS = ['mmalinverno76@gmail.com', 'peewe75@gmail.com', 'mmalinverno@gmail.com', 'avv.sapone@hotmail.it'];
 
 interface ClientFormData {
   name: string;

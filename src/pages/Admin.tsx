@@ -5,7 +5,7 @@ import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { LayoutGrid, Package, RefreshCw, Users } from 'lucide-react';
 
-const ADMIN_EMAILS = ['mmalinverno76@gmail.com', 'peewe75@gmail.com', 'mmalinverno@gmail.com'];
+const ADMIN_EMAILS = ['mmalinverno76@gmail.com', 'peewe75@gmail.com', 'mmalinverno@gmail.com', 'avv.sapone@hotmail.it'];
 
 export default function Admin() {
   const { user, loading: authLoading } = useAuth();
