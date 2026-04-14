@@ -9,9 +9,8 @@ dotenv.config();
 const app = express();
 
 app.use(cors());
-app.use(express.json());
-
-// Setup multer for memory storage
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ limit: '20mb', extended: true }));
 const upload = multer({ storage: multer.memoryStorage() });
 
 // Initialize OpenRouter client
@@ -47,11 +46,28 @@ router.post('/vto/analyze', upload.single('userImage'), async (req, res) => {
     const userBase64 = userImageFile.buffer.toString('base64');
     const userMimeType = userImageFile.mimetype;
 
+    // Build absolute URL for product image if it's relative
+    let absoluteProductUrl = productImageUrl;
+    if (productImageUrl.startsWith('/') || !productImageUrl.startsWith('http')) {
+      const protocol = req.headers['x-forwarded-proto'] || 'https';
+      const host = req.headers['host'];
+      // Remove leading slash if present to avoid double slash
+      const cleanPath = productImageUrl.startsWith('/') ? productImageUrl.slice(1) : productImageUrl;
+      absoluteProductUrl = `${protocol}://${host}/${cleanPath}`;
+    }
+
+    console.log(`VTO Analyze: Fetching product image from ${absoluteProductUrl}`);
+
     // Fetch product image and convert to base64
-    const productResponse = await fetch(productImageUrl);
+    const productResponse = await fetch(absoluteProductUrl);
+    if (!productResponse.ok) {
+        throw new Error(`Impossibile scaricare l'immagine del prodotto (${productResponse.status})`);
+    }
     const productBuffer = Buffer.from(await productResponse.arrayBuffer());
     const productMimeType = productResponse.headers.get('content-type') || 'image/jpeg';
     const productBase64 = productBuffer.toString('base64');
+
+    console.log(`VTO Analyze: Starting analysis with Gemini 2.0 Flash...`);
 
     // Analysis using OpenRouter (multimodal vision)
     const analysisResponse = await openai.chat.completions.create({
@@ -87,10 +103,18 @@ router.post('/vto/analyze', upload.single('userImage'), async (req, res) => {
       ],
     });
 
+    const analyzeData = await analysisResponse;
+    
+    // Check for internal OpenRouter errors (returned with 200 OK)
+    if ((analyzeData as any).error) {
+        console.error("OpenRouter Analyze Internal Error:", (analyzeData as any).error);
+        return res.status(500).json({ error: `Errore analisi AI: ${(analyzeData as any).error.message}` });
+    }
+
     const imagenPrompt = analysisResponse.choices[0].message.content?.trim() || "";
 
     if (!imagenPrompt) {
-      throw new Error("Impossibile generare il prompt dall'analisi.");
+      throw new Error("Impossibile generare le istruzioni per il camerino.");
     }
 
     res.json({ success: true, imagenPrompt });
@@ -156,12 +180,25 @@ router.post('/vto/generate', async (req, res) => {
       }
 
       const data = await response.json();
-      const imageData = data.choices?.[0]?.message?.images?.[0] || data.choices?.[0]?.message?.content;
+      
+      // Handle OpenRouter internal errors that come with 200 status
+      if (data.error) {
+        console.error("OpenRouter Internal Error:", JSON.stringify(data.error));
+        return res.status(500).json({ 
+          error: `Il fornitore AI ha restituito un errore: ${data.error.message || "Errore sconosciuto"}. Riprova tra un istante.` 
+        });
+      }
+
+      // Try different common paths for the image URL in the response
+      const imageData = data.choices?.[0]?.message?.images?.[0] || 
+                        data.choices?.[0]?.message?.content || 
+                        data.choices?.[0]?.message?.content?.[0]?.image_url?.url;
+      
       let finalImageUrl = typeof imageData === 'string' ? imageData : imageData?.url;
 
-      if (!finalImageUrl) {
-          console.error("OpenRouter Response Data:", JSON.stringify(data, null, 2));
-          throw new Error(`OpenRouter ha risposto con successo ma senza immagine. Risposta raw: ${JSON.stringify(data)}`);
+      if (!finalImageUrl || finalImageUrl.length < 10) {
+          console.error("OpenRouter Empty Response Data:", JSON.stringify(data, null, 2));
+          throw new Error(`OpenRouter ha risposto senza un URL immagine valido. Risposta raw: ${JSON.stringify(data)}`);
       }
 
       // Normalize and extract valid image URL or Base64 format
