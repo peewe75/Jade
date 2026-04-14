@@ -22,8 +22,8 @@ export default function Product() {
   const [product, setProduct] = useState<ProductData | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
-  const [selectedImage, setSelectedImage] = useState(0);
   const [openAccordion, setOpenAccordion] = useState<string | null>('details');
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
   // VTO State
   const [isVtoModalOpen, setIsVtoModalOpen] = useState(false);
@@ -50,10 +50,6 @@ export default function Product() {
       }
     };
     fetchProduct();
-  }, [id]);
-
-  useEffect(() => {
-    setSelectedImage(0);
   }, [id]);
 
   useEffect(() => {
@@ -146,7 +142,7 @@ export default function Product() {
   };
 
   const displayImages = displayProduct.images.filter(Boolean);
-  const heroImage = displayImages[selectedImage] || displayImages[0];
+  const heroImage = displayImages[0];
   const galleryImages = displayImages.slice(1);
 
   const availableSizes = displayProduct.sizes || ['XS', 'S', 'M', 'L', 'XL'];
@@ -161,7 +157,8 @@ export default function Product() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6 }}
-            className="aspect-[3/4] bg-gray-100 overflow-hidden"
+            className="aspect-[3/4] bg-gray-100 overflow-hidden cursor-zoom-in"
+            onClick={() => heroImage && setLightboxImage(heroImage)}
           >
             <img 
               src={heroImage} 
@@ -178,10 +175,8 @@ export default function Product() {
                 <button
                   key={`${img}-${actualIndex}`}
                   type="button"
-                  onClick={() => setSelectedImage(actualIndex)}
-                  className={`aspect-[3/4] overflow-hidden bg-gray-100 border transition-all ${
-                    selectedImage === actualIndex ? 'border-brand-black ring-1 ring-brand-black' : 'border-transparent'
-                  }`}
+                  onClick={() => setLightboxImage(img)}
+                  className="aspect-[3/4] overflow-hidden bg-gray-100 border border-transparent transition-all hover:border-brand-black cursor-zoom-in"
                 >
                   <img 
                     src={img} 
@@ -316,6 +311,40 @@ export default function Product() {
 
       {/* VTO Modal */}
       <AnimatePresence>
+        {lightboxImage && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <button
+              type="button"
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+              onClick={() => setLightboxImage(null)}
+              aria-label="Chiudi immagine ingrandita"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="relative z-10 w-full max-w-5xl"
+            >
+              <button
+                type="button"
+                onClick={() => setLightboxImage(null)}
+                className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors"
+                aria-label="Chiudi popup immagine"
+              >
+                <X className="w-7 h-7" />
+              </button>
+              <div className="max-h-[88vh] overflow-hidden bg-white shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
+                <img
+                  src={lightboxImage}
+                  alt={displayProduct.name}
+                  className="w-full max-h-[88vh] object-contain bg-white"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+            </motion.div>
+          </div>
+        )}
+
         {isVtoModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => !isVtoProcessing && setIsVtoModalOpen(false)} />

@@ -23,7 +23,7 @@ export default function Hero() {
           transition={{ duration: 0.8, delay: 0.2 }}
           className="text-white text-sm md:text-base uppercase tracking-[0.3em] mb-4 font-medium"
         >
-          Born Between Garda & Miami
+          Concept Born Between Garda & Miami
         </motion.p>
         
         <motion.h1

@@ -1,13 +1,15 @@
 import { ShoppingBag, Menu, Search, User } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const location = useLocation();
   const { user, logout } = useAuth();
+  const accountMenuRef = useRef<HTMLDivElement | null>(null);
   
   // Force solid background if not on home page
   const isHome = location.pathname === '/';
@@ -18,6 +20,17 @@ export default function Navbar() {
     };
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!accountMenuRef.current?.contains(event.target as Node)) {
+        setIsAccountMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
   }, []);
 
   const navClass = isHome 
@@ -50,34 +63,45 @@ export default function Navbar() {
           {/* Center: Logo */}
           <div className="flex-1 text-center">
             <Link to="/" className="font-serif text-2xl tracking-widest uppercase font-semibold">
-              The Blondes
+              The Blondes Concept
             </Link>
           </div>
 
           {/* Right: Account & Cart */}
           <div className="flex items-center justify-end space-x-4 flex-1">
             {user ? (
-              <div className="relative group hidden sm:block">
-                <button className="p-2 hover:opacity-70 transition-opacity flex items-center">
+              <div ref={accountMenuRef} className="relative hidden sm:block">
+                <button
+                  type="button"
+                  onClick={() => setIsAccountMenuOpen((current) => !current)}
+                  className="p-2 hover:opacity-70 transition-opacity flex items-center"
+                  aria-haspopup="menu"
+                  aria-expanded={isAccountMenuOpen}
+                  aria-label="Apri menu account"
+                >
                   {user.photoURL ? (
                     <img src={user.photoURL} alt="Profile" className="w-6 h-6 rounded-full" referrerPolicy="no-referrer" />
                   ) : (
                     <User className="w-5 h-5" />
                   )}
                 </button>
-                <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-100 shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200">
+                <div className={`absolute right-0 mt-2 w-48 bg-white border border-gray-100 shadow-lg transition-all duration-200 ${isAccountMenuOpen ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible -translate-y-1 pointer-events-none'}`}>
                   <div className="p-4 border-b border-gray-100">
                     <p className="text-sm font-medium text-brand-black truncate">{user.displayName || 'User'}</p>
                     <p className="text-xs text-gray-500 truncate">{user.email}</p>
                   </div>
                   <Link 
-                    to="/admin" 
+                    to="/admin"
+                    onClick={() => setIsAccountMenuOpen(false)}
                     className="block w-full text-left px-4 py-3 text-sm uppercase tracking-widest font-medium hover:bg-gray-50 text-brand-black transition-colors border-b border-gray-100"
                   >
                     Dashboard
                   </Link>
                   <button 
-                    onClick={logout} 
+                    onClick={() => {
+                      setIsAccountMenuOpen(false);
+                      void logout();
+                    }}
                     className="w-full text-left px-4 py-3 text-sm uppercase tracking-widest font-medium hover:bg-gray-50 text-brand-black transition-colors"
                   >
                     Sign Out
@@ -102,7 +126,6 @@ export default function Navbar() {
     </motion.nav>
   );
 }
-
 
 
 
