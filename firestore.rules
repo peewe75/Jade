@@ -19,14 +19,22 @@ service cloud.firestore {
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
+
+    function isWhitelistedAdminEmail() {
+      return isAuthenticated() &&
+        request.auth.token.email is string &&
+        request.auth.token.email.lower() in [
+          "mmalinverno76@gmail.com",
+          "mmalinverno@gmail.com",
+          "peewe75@gmail.com",
+          "avv.sapone@hotmail.it"
+        ];
+    }
     
     function isAdmin() {
       return isAuthenticated() &&
         (
-          (request.auth.token.email.lower() == "mmalinverno76@gmail.com" && request.auth.token.email_verified == true) ||
-          (request.auth.token.email.lower() == "mmalinverno@gmail.com" && request.auth.token.email_verified == true) ||
-          (request.auth.token.email.lower() == "peewe75@gmail.com" && request.auth.token.email_verified == true) ||
-          (request.auth.token.email.lower() == "avv.sapone@hotmail.it" && request.auth.token.email_verified == true) ||
+          isWhitelistedAdminEmail() ||
           (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
         );
@@ -148,9 +156,10 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isAuthenticated() && isValidUser(request.resource.data, userId) && 
-                    ((isOwner(userId) && request.resource.data.role == 'customer') || isAdmin());
+                    ((isOwner(userId) && (request.resource.data.role == 'customer' || (isWhitelistedAdminEmail() && request.resource.data.role == 'admin'))) || isAdmin());
       allow update: if isAuthenticated() && isValidUser(request.resource.data, userId) && 
-                    ((isOwner(userId) && request.resource.data.role == resource.data.role && areImmutableFieldsUnchanged(['uid', 'createdAt'])) || isAdmin());
+                    ((isOwner(userId) && areImmutableFieldsUnchanged(['uid', 'createdAt']) &&
+                      (request.resource.data.role == resource.data.role || (isWhitelistedAdminEmail() && request.resource.data.role == 'admin'))) || isAdmin());
       allow delete: if isAdmin();
     }
 

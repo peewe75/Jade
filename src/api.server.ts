@@ -95,19 +95,31 @@ router.post("/vto/process", upload.single("userImage"), async (req, res) => {
       throw new Error("Failed to generate image prompt from analysis.");
     }
 
-    // 3. Generate the final image using GPT-5 Image model on OpenRouter
-    const generateResponse = await openai.images.generate({
+    // 3. Generate the final image using OpenRouter's multimodal chat endpoint (recommended for image generation)
+    const generateResponse = await openai.chat.completions.create({
       model: "openai/gpt-5-image", 
-      prompt: imagenPrompt,
-      n: 1,
-      size: "1024x1024" as any,
-    } as any);
+      messages: [
+        {
+          role: "user",
+          content: imagenPrompt,
+        }
+      ],
+      // OpenRouter uses modalities: ["image"] for image generation via the completions endpoint
+      // @ts-ignore
+      modalities: ["image"],
+    });
 
-    const finalImageUrl = generateResponse.data[0].url;
+    const imageData = (generateResponse.choices[0].message as any).images?.[0];
+    const imageUrl = imageData?.url || imageData;
+
+    if (!imageUrl) {
+      console.error("OpenRouter Vision/Imagen Response:", JSON.stringify(generateResponse, null, 2));
+      throw new Error("Failed to generate image URL from OpenRouter.");
+    }
 
     res.json({ 
       success: true, 
-      imageUrl: finalImageUrl,
+      imageUrl: imageUrl,
       promptUsed: imagenPrompt 
     });
 
