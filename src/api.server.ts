@@ -232,17 +232,50 @@ router.post('/vto/generate', async (req, res) => {
       });
     }
 
-    // Estrai URL immagine dai vari formati possibili
-    const imageData =
-      data.choices?.[0]?.message?.images?.[0] ||
-      data.choices?.[0]?.message?.content ||
-      data.choices?.[0]?.message?.content?.[0]?.image_url?.url;
+    // OpenRouter può restituire l'immagine in più forme diverse a seconda del provider.
+    // Coprire tutti i casi noti:
+    //   (a) choices[0].message.images[0].image_url.url   ← Flux/Gemini image output
+    //   (b) choices[0].message.images[0].url             ← variante piatta
+    //   (c) choices[0].message.images[0]                 ← stringa diretta
+    //   (d) choices[0].message.content                   ← stringa con URL o base64
+    //   (e) choices[0].message.content[]                 ← array con image_url parts
+    const msg = data.choices?.[0]?.message;
+    let finalImageUrl: string | undefined;
 
-    let finalImageUrl: string | undefined =
-      typeof imageData === 'string' ? imageData : imageData?.url;
+    const firstImage = msg?.images?.[0];
+    if (firstImage) {
+      if (typeof firstImage === 'string') {
+        finalImageUrl = firstImage;
+      } else if (typeof firstImage?.image_url === 'string') {
+        finalImageUrl = firstImage.image_url;
+      } else if (typeof firstImage?.image_url?.url === 'string') {
+        finalImageUrl = firstImage.image_url.url;
+      } else if (typeof firstImage?.url === 'string') {
+        finalImageUrl = firstImage.url;
+      } else if (typeof firstImage?.b64_json === 'string') {
+        finalImageUrl = `data:image/jpeg;base64,${firstImage.b64_json}`;
+      }
+    }
+
+    if (!finalImageUrl && typeof msg?.content === 'string') {
+      finalImageUrl = msg.content;
+    }
+
+    if (!finalImageUrl && Array.isArray(msg?.content)) {
+      for (const part of msg.content) {
+        if (typeof part?.image_url?.url === 'string') {
+          finalImageUrl = part.image_url.url;
+          break;
+        }
+        if (typeof part?.image_url === 'string') {
+          finalImageUrl = part.image_url;
+          break;
+        }
+      }
+    }
 
     if (!finalImageUrl || finalImageUrl.length < 10) {
-      console.error("OpenRouter empty response:", JSON.stringify(data, null, 2));
+      console.error("OpenRouter empty response:", JSON.stringify(data).slice(0, 2000));
       return res.status(502).json({ error: "OpenRouter ha risposto senza URL immagine." });
     }
 
