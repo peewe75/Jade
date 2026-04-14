@@ -14,10 +14,10 @@ app.use(express.urlencoded({ limit: '8mb', extended: true }));
 
 const router = express.Router();
 
-// Netlify sync function: timeout hard = 10s. Lasciamo 2s di margine al wrapping I/O.
-const ANALYZE_AI_TIMEOUT_MS = 8000;
-const GENERATE_AI_TIMEOUT_MS = 8000;
-const EXTERNAL_FETCH_TIMEOUT_MS = 4000;
+// Netlify sync function: timeout hard = 10s. Lasciamo 1s di margine al wrapping I/O.
+const AI_TIMEOUT_MS = 9000;
+const EXTERNAL_FETCH_TIMEOUT_MS = 3500;
+const VTO_MODEL = "google/gemini-2.5-flash-image-preview";
 
 function isLikelyBase64Image(value: unknown): value is string {
   return typeof value === 'string' && value.length > 100 && /^[A-Za-z0-9+/=\s]+$/.test(value.slice(0, 200));
@@ -34,11 +34,87 @@ async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Respons
 }
 
 /**
- * STEP 1: Analyze images to create a descriptive prompt.
- * Accetta JSON: { userImageBase64, userMimeType, productImageUrl, productName, productCategory }
- * Niente multipart/multer: in serverless (Netlify) multer è fragile e spesso causa 400.
+ * Risolve l'immagine prodotto in { base64, mimeType } gestendo:
+ *   - data URL inline (prodotti caricati dall'admin)
+ *   - URL HTTP(S) (picsum, Firebase Storage)
+ *   - path relativo
  */
-router.post('/vto/analyze', async (req, res) => {
+async function resolveProductImage(
+  productImageUrl: string,
+  reqHeaders: express.Request['headers']
+): Promise<{ base64: string; mimeType: string }> {
+  if (productImageUrl.startsWith('data:')) {
+    const match = productImageUrl.match(/^data:([^;,]+)?(?:;base64)?,(.*)$/);
+    if (!match || !match[2]) {
+      throw new Error("data URL prodotto non valido.");
+    }
+    return { base64: match[2], mimeType: match[1] || 'image/jpeg' };
+  }
+
+  let absoluteUrl = productImageUrl;
+  if (!/^https?:\/\//i.test(productImageUrl)) {
+    const protocol = (reqHeaders['x-forwarded-proto'] as string) || 'https';
+    const host = reqHeaders['host'];
+    const cleanPath = productImageUrl.startsWith('/') ? productImageUrl.slice(1) : productImageUrl;
+    absoluteUrl = `${protocol}://${host}/${cleanPath}`;
+  }
+
+  const response = await fetchWithTimeout(absoluteUrl, EXTERNAL_FETCH_TIMEOUT_MS);
+  if (!response.ok) {
+    throw new Error(`Impossibile scaricare l'immagine del prodotto (${response.status}).`);
+  }
+  const buffer = Buffer.from(await response.arrayBuffer());
+  return {
+    base64: buffer.toString('base64'),
+    mimeType: response.headers.get('content-type') || 'image/jpeg',
+  };
+}
+
+/**
+ * Estrae l'URL/dataURL immagine dalla risposta OpenRouter, coprendo tutte le forme note:
+ *   (a) choices[0].message.images[0].image_url.url
+ *   (b) choices[0].message.images[0].image_url (stringa)
+ *   (c) choices[0].message.images[0].url
+ *   (d) choices[0].message.images[0] (stringa)
+ *   (e) choices[0].message.images[0].b64_json
+ *   (f) choices[0].message.content (stringa con URL o base64)
+ *   (g) choices[0].message.content[] (array con image_url parts)
+ */
+function extractImageUrl(data: any): string | undefined {
+  const msg = data?.choices?.[0]?.message;
+  const firstImage = msg?.images?.[0];
+
+  if (firstImage) {
+    if (typeof firstImage === 'string') return firstImage;
+    if (typeof firstImage.image_url === 'string') return firstImage.image_url;
+    if (typeof firstImage.image_url?.url === 'string') return firstImage.image_url.url;
+    if (typeof firstImage.url === 'string') return firstImage.url;
+    if (typeof firstImage.b64_json === 'string') {
+      return `data:image/jpeg;base64,${firstImage.b64_json}`;
+    }
+  }
+
+  if (typeof msg?.content === 'string' && msg.content.length > 20) {
+    return msg.content;
+  }
+
+  if (Array.isArray(msg?.content)) {
+    for (const part of msg.content) {
+      if (typeof part?.image_url?.url === 'string') return part.image_url.url;
+      if (typeof part?.image_url === 'string') return part.image_url;
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Virtual Try-On single-shot.
+ * Invia foto utente + foto prodotto + istruzioni a Gemini 2.5 Flash Image,
+ * che genera direttamente una nuova immagine preservando identità utente
+ * e fedeltà del prodotto. Un solo endpoint → rientriamo nei 10s Netlify.
+ */
+router.post('/vto/tryon', async (req, res) => {
   try {
     const {
       userImageBase64,
@@ -58,61 +134,34 @@ router.post('/vto/analyze', async (req, res) => {
       return res.status(400).json({ error: "Foto utente mancante o non valida." });
     }
     if (!productImageUrl || typeof productImageUrl !== 'string') {
-      return res.status(400).json({ error: "URL immagine prodotto mancante." });
+      return res.status(400).json({ error: "Immagine prodotto mancante." });
     }
     if (!productName) {
       return res.status(400).json({ error: "Nome prodotto mancante." });
     }
 
     const userMimeType = userMimeTypeRaw || 'image/jpeg';
+    const product = await resolveProductImage(productImageUrl, req.headers);
 
-    // Il productImageUrl può essere:
-    //  (a) un data URL inline (i prodotti caricati dall'admin sono salvati così in Firestore)
-    //  (b) un URL HTTPS (es. picsum, Firebase Storage)
-    //  (c) un path relativo (raro)
-    let productBase64: string;
-    let productMimeType: string;
-
-    if (productImageUrl.startsWith('data:')) {
-      // Data URL: parsa inline senza fare fetch
-      const match = productImageUrl.match(/^data:([^;,]+)?(?:;base64)?,(.*)$/);
-      if (!match) {
-        return res.status(400).json({ error: "data URL prodotto non valido." });
-      }
-      productMimeType = match[1] || 'image/jpeg';
-      productBase64 = match[2] || '';
-      if (!productBase64) {
-        return res.status(400).json({ error: "Immagine prodotto vuota." });
-      }
-    } else {
-      let absoluteProductUrl = productImageUrl;
-      if (!/^https?:\/\//i.test(productImageUrl)) {
-        const protocol = (req.headers['x-forwarded-proto'] as string) || 'https';
-        const host = req.headers['host'];
-        const cleanPath = productImageUrl.startsWith('/') ? productImageUrl.slice(1) : productImageUrl;
-        absoluteProductUrl = `${protocol}://${host}/${cleanPath}`;
-      }
-      console.log(`VTO Analyze: fetching product image from ${absoluteProductUrl.slice(0, 120)}`);
-
-      const productResponse = await fetchWithTimeout(absoluteProductUrl, EXTERNAL_FETCH_TIMEOUT_MS);
-      if (!productResponse.ok) {
-        return res.status(502).json({
-          error: `Impossibile scaricare l'immagine del prodotto (${productResponse.status}).`,
-        });
-      }
-      const productBuffer = Buffer.from(await productResponse.arrayBuffer());
-      productMimeType = productResponse.headers.get('content-type') || 'image/jpeg';
-      productBase64 = productBuffer.toString('base64');
-    }
-
-    console.log(`VTO Analyze: starting Gemini 2.0 Flash...`);
+    const categoryHint = productCategory ? ` (${productCategory})` : '';
+    const prompt =
+      `You are a virtual try-on engine. You are given two images:\n` +
+      `1. A photo of a person (the customer).\n` +
+      `2. A photo of a clothing product called "${productName}"${categoryHint}.\n\n` +
+      `Task: produce a single photorealistic image showing the SAME person from image 1 wearing the EXACT garment from image 2.\n\n` +
+      `STRICT REQUIREMENTS:\n` +
+      `- Preserve the person's face, hair, skin tone, body proportions, and pose from image 1 EXACTLY. Do not change their identity.\n` +
+      `- Preserve the garment's exact color, pattern, fabric texture, cut, length, and styling details from image 2. Do not substitute a similar-looking item.\n` +
+      `- Keep the original background, lighting, and camera angle of image 1.\n` +
+      `- Fit the garment naturally on the body, with realistic drape, shadows, and wrinkles.\n` +
+      `- Output a single high-quality photograph. No text, no watermarks, no extra people.`;
 
     const aiController = new AbortController();
-    const aiTimer = setTimeout(() => aiController.abort(), ANALYZE_AI_TIMEOUT_MS);
+    const aiTimer = setTimeout(() => aiController.abort(), AI_TIMEOUT_MS);
 
-    let analysisResponse: Response;
+    let response: Response;
     try {
-      analysisResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
@@ -121,21 +170,15 @@ router.post('/vto/analyze', async (req, res) => {
           "X-Title": "The Blondes CRM",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.0-flash-001",
+          model: VTO_MODEL,
+          modalities: ["image", "text"],
           messages: [
             {
               role: "user",
               content: [
-                {
-                  type: "text",
-                  text: `You are an AI fashion stylist. Analyze these two images:
-1. A photo of a person.
-2. A product photo of a "${productName}"${productCategory ? ` (${productCategory})` : ''}.
-
-Task: Create a highly detailed image generation prompt (in English) to show this person wearing the product. Focus on fit, posture, lighting, fabric drape. Output ONLY the prompt string.`,
-                },
+                { type: "text", text: prompt },
                 { type: "image_url", image_url: { url: `data:${userMimeType};base64,${userImageBase64}` } },
-                { type: "image_url", image_url: { url: `data:${productMimeType};base64,${productBase64}` } },
+                { type: "image_url", image_url: { url: `data:${product.mimeType};base64,${product.base64}` } },
               ],
             },
           ],
@@ -146,79 +189,9 @@ Task: Create a highly detailed image generation prompt (in English) to show this
       clearTimeout(aiTimer);
     }
 
-    if (!analysisResponse.ok) {
-      const errorText = await analysisResponse.text().catch(() => '');
-      console.error("Analysis API Error:", analysisResponse.status, errorText);
-      return res.status(502).json({
-        error: `Errore durante l'analisi visiva (${analysisResponse.status}). Riprova con una foto più piccola.`,
-      });
-    }
-
-    const analyzeData = await analysisResponse.json();
-    if (analyzeData.error) {
-      console.error("OpenRouter Analyze Error:", analyzeData.error);
-      return res.status(502).json({
-        error: `Errore AI: ${analyzeData.error.message || "Risorsa non disponibile"}`,
-      });
-    }
-
-    const imagenPrompt = analyzeData.choices?.[0]?.message?.content?.trim() || "";
-    if (!imagenPrompt || imagenPrompt.length < 5) {
-      return res.status(502).json({
-        error: "L'AI non ha generato un prompt valido. Prova con una foto diversa.",
-      });
-    }
-
-    return res.json({ success: true, imagenPrompt });
-  } catch (error: any) {
-    const aborted = error?.name === 'AbortError';
-    console.error("VTO Analyze Error:", error?.message || error);
-    return res.status(aborted ? 504 : 500).json({
-      error: aborted
-        ? "L'analisi ha impiegato troppo tempo. Riprova con una foto più piccola."
-        : (error?.message || "Errore durante l'analisi delle foto."),
-    });
-  }
-});
-
-/**
- * STEP 2: Generate the final image using the prompt from Step 1.
- */
-router.post('/vto/generate', async (req, res) => {
-  const { imagenPrompt } = (req.body ?? {}) as { imagenPrompt?: string };
-
-  if (!imagenPrompt) {
-    return res.status(400).json({ error: "Prompt immagine richiesto." });
-  }
-
-  const modelToUse = "black-forest-labs/flux.2-klein-4b";
-  const aiController = new AbortController();
-  const aiTimer = setTimeout(() => aiController.abort(), GENERATE_AI_TIMEOUT_MS);
-
-  try {
-    console.log(`VTO Generate: model=${modelToUse}`);
-
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://theblondes.it",
-        "X-Title": "The Blondes CRM",
-      },
-      body: JSON.stringify({
-        model: modelToUse,
-        messages: [
-          { role: "user", content: [{ type: "text", text: imagenPrompt }] },
-        ],
-        modalities: ["image"],
-      }),
-      signal: aiController.signal,
-    });
-
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({} as any));
-      console.warn("Generate API error:", response.status, errorData);
+      console.warn("VTO upstream error:", response.status, errorData);
       return res.status(502).json({
         error: `Generazione fallita. ${errorData.error?.message || response.statusText}`,
       });
@@ -226,85 +199,43 @@ router.post('/vto/generate', async (req, res) => {
 
     const data = await response.json();
     if (data.error) {
-      console.error("OpenRouter Generate Error:", data.error);
+      console.error("OpenRouter VTO error:", data.error);
       return res.status(502).json({
-        error: `Il fornitore AI ha restituito un errore: ${data.error.message || "Errore sconosciuto"}.`,
+        error: `Il fornitore AI ha restituito un errore: ${data.error.message || "sconosciuto"}.`,
       });
     }
 
-    // OpenRouter può restituire l'immagine in più forme diverse a seconda del provider.
-    // Coprire tutti i casi noti:
-    //   (a) choices[0].message.images[0].image_url.url   ← Flux/Gemini image output
-    //   (b) choices[0].message.images[0].url             ← variante piatta
-    //   (c) choices[0].message.images[0]                 ← stringa diretta
-    //   (d) choices[0].message.content                   ← stringa con URL o base64
-    //   (e) choices[0].message.content[]                 ← array con image_url parts
-    const msg = data.choices?.[0]?.message;
-    let finalImageUrl: string | undefined;
-
-    const firstImage = msg?.images?.[0];
-    if (firstImage) {
-      if (typeof firstImage === 'string') {
-        finalImageUrl = firstImage;
-      } else if (typeof firstImage?.image_url === 'string') {
-        finalImageUrl = firstImage.image_url;
-      } else if (typeof firstImage?.image_url?.url === 'string') {
-        finalImageUrl = firstImage.image_url.url;
-      } else if (typeof firstImage?.url === 'string') {
-        finalImageUrl = firstImage.url;
-      } else if (typeof firstImage?.b64_json === 'string') {
-        finalImageUrl = `data:image/jpeg;base64,${firstImage.b64_json}`;
-      }
+    let imageUrl = extractImageUrl(data);
+    if (!imageUrl || imageUrl.length < 10) {
+      console.error("VTO empty response:", JSON.stringify(data).slice(0, 2000));
+      return res.status(502).json({ error: "Il modello non ha restituito un'immagine valida. Riprova." });
     }
 
-    if (!finalImageUrl && typeof msg?.content === 'string') {
-      finalImageUrl = msg.content;
-    }
-
-    if (!finalImageUrl && Array.isArray(msg?.content)) {
-      for (const part of msg.content) {
-        if (typeof part?.image_url?.url === 'string') {
-          finalImageUrl = part.image_url.url;
-          break;
-        }
-        if (typeof part?.image_url === 'string') {
-          finalImageUrl = part.image_url;
-          break;
-        }
-      }
-    }
-
-    if (!finalImageUrl || finalImageUrl.length < 10) {
-      console.error("OpenRouter empty response:", JSON.stringify(data).slice(0, 2000));
-      return res.status(502).json({ error: "OpenRouter ha risposto senza URL immagine." });
-    }
-
-    if (!finalImageUrl.startsWith('http') && !finalImageUrl.startsWith('data:')) {
-      const urlMatch = finalImageUrl.match(/(https?:\/\/[^\s)]+)/);
+    // Se la risposta è una stringa "grezza" di base64, wrappala in data URL
+    if (!imageUrl.startsWith('http') && !imageUrl.startsWith('data:')) {
+      const urlMatch = imageUrl.match(/(https?:\/\/[^\s)]+)/);
       if (urlMatch) {
-        finalImageUrl = urlMatch[1];
-      } else if (finalImageUrl.length > 500) {
-        finalImageUrl = `data:image/jpeg;base64,${finalImageUrl}`;
+        imageUrl = urlMatch[1];
+      } else if (imageUrl.length > 500) {
+        imageUrl = `data:image/jpeg;base64,${imageUrl.replace(/\s/g, '')}`;
       } else {
         return res.status(502).json({ error: "Risposta AI incomprensibile." });
       }
     }
 
-    const modelUsed = data.model || modelToUse;
-    console.log(`VTO Generate: success, model=${modelUsed}`);
-    return res.json({ success: true, imageUrl: finalImageUrl, modelUsed });
+    const modelUsed = data.model || VTO_MODEL;
+    console.log(`VTO success, model=${modelUsed}`);
+    return res.json({ success: true, imageUrl, modelUsed });
   } catch (error: any) {
     const aborted = error?.name === 'AbortError';
-    console.error("VTO Generate Error:", error?.message || error);
+    console.error("VTO Error:", error?.message || error);
     if (!res.headersSent) {
       return res.status(aborted ? 504 : 500).json({
         error: aborted
-          ? "Il modello sta impiegando troppo tempo (limite 10s Netlify). Riprova."
-          : (error?.message || "Errore critico durante la generazione."),
+          ? "Il camerino virtuale ha impiegato troppo tempo. Riprova con una foto più piccola."
+          : (error?.message || "Errore durante la generazione."),
       });
     }
-  } finally {
-    clearTimeout(aiTimer);
   }
 });
 

@@ -126,13 +126,13 @@ export default function Product() {
 
     setIsVtoProcessing(true);
     setVtoResultImage(null);
-    setVtoPhase('analyzing');
+    setVtoPhase('generating');
 
     try {
-      // Step 1: resize + compress lato client (Netlify ha limite ~6MB per function body)
+      // Resize + compress lato client (Netlify limita ~6MB per function body)
       const { base64, mimeType } = await resizeAndEncodeImage(vtoFile, 1024, 0.85);
 
-      const analyzeResponse = await fetch('/api/vto/analyze', {
+      const response = await fetch('/api/vto/tryon', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -144,52 +144,23 @@ export default function Product() {
         }),
       });
 
-      if (!analyzeResponse.ok) {
-        let errorMsg = `Errore analisi (${analyzeResponse.status})`;
+      if (!response.ok) {
+        let errorMsg = `Errore camerino virtuale (${response.status})`;
         try {
-          const errorData = await analyzeResponse.json();
-          errorMsg = errorData.error || errorMsg;
-        } catch (e) {}
-        
-        console.error("Analysis Error Details:", errorMsg);
-        alert(errorMsg);
-        setIsVtoProcessing(false);
-        return;
-      }
-
-      const analyzeData = await analyzeResponse.json();
-      if (!analyzeData.success) {
-        alert(analyzeData.error || "Errore durante l'analisi.");
-        return;
-      }
-
-      // Step 2: Generate final image using the prompt
-      setVtoPhase('generating');
-      
-      const generateResponse = await fetch('/api/vto/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imagenPrompt: analyzeData.imagenPrompt }),
-      });
-
-      if (!generateResponse.ok) {
-        let errorMsg = `Errore generazione (${generateResponse.status})`;
-        try {
-          const errorData = await generateResponse.json();
+          const errorData = await response.json();
           errorMsg = errorData.error || errorMsg;
         } catch {}
-        console.error("Generation Error:", errorMsg);
+        console.error("VTO Error:", errorMsg);
         alert(errorMsg);
         return;
       }
 
-      const generateData = await generateResponse.json();
-      if (generateData.success) {
-        setVtoResultImage(generateData.imageUrl);
+      const data = await response.json();
+      if (data.success && data.imageUrl) {
+        setVtoResultImage(data.imageUrl);
       } else {
-        alert(generateData.error || "Errore nella generazione finale.");
+        alert(data.error || "Errore durante la generazione.");
       }
-
     } catch (error) {
       console.error("VTO Process Error:", error);
       alert("Errore di connessione al camerino.");
