@@ -24,8 +24,10 @@ const openai = new OpenAI({
   }
 });
 
+const router = express.Router();
+
 // VTO Endpoint
-app.post("/api/vto/process", upload.single("userImage"), async (req, res) => {
+router.post("/vto/process", upload.single("userImage"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No user image provided." });
@@ -118,5 +120,8 @@ app.post("/api/vto/process", upload.single("userImage"), async (req, res) => {
     res.status(500).json({ error: error.message || "Failed to process Virtual Try-On." });
   }
 });
+
+app.use("/api", router);
+app.use("/.netlify/functions/api", router);
 
 export default app;
