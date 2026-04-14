@@ -34,6 +34,7 @@ export default function Product() {
   const [isVtoProcessing, setIsVtoProcessing] = useState(false);
   const [vtoResultImage, setVtoResultImage] = useState<string | null>(null);
   const [vtoPreviewImage, setVtoPreviewImage] = useState<string | null>(null);
+  const [vtoPhase, setVtoPhase] = useState<'idle' | 'analyzing' | 'generating'>('idle');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -78,37 +79,63 @@ export default function Product() {
 
     setIsVtoProcessing(true);
     setVtoResultImage(null);
-
-    const formData = new FormData();
-    formData.append('userImage', vtoFile);
-    formData.append('productImageUrl', displayProduct.images[0]);
-    formData.append('productName', displayProduct.name);
-    formData.append('productCategory', displayProduct.category);
+    setVtoPhase('analyzing');
 
     try {
-      const response = await fetch('/api/vto/process', {
+      // Step 1: Analyze images to get a prompt
+      const formData = new FormData();
+      formData.append('userImage', vtoFile);
+      formData.append('productImageUrl', displayProduct.images[0]);
+      formData.append('productName', displayProduct.name);
+      formData.append('productCategory', displayProduct.category);
+
+      const analyzeResponse = await fetch('/api/vto/analyze', {
         method: 'POST',
         body: formData,
       });
 
-      if (!response.ok) {
-        const text = await response.text();
-        console.error("Server returned error:", response.status, text);
-        alert(`Errore del server (${response.status}). Riprova più tardi.`);
+      if (!analyzeResponse.ok) {
+        const text = await analyzeResponse.text();
+        console.error("Analysis Error:", analyzeResponse.status, text);
+        alert(`Errore analisi (${analyzeResponse.status}). Riprova.`);
         return;
       }
 
-      const data = await response.json();
-      if (data.success) {
-        setVtoResultImage(data.imageUrl);
-      } else {
-        alert(data.error || "Errore durante la generazione del VTO.");
+      const analyzeData = await analyzeResponse.json();
+      if (!analyzeData.success) {
+        alert(analyzeData.error || "Errore durante l'analisi.");
+        return;
       }
+
+      // Step 2: Generate final image using the prompt
+      setVtoPhase('generating');
+      
+      const generateResponse = await fetch('/api/vto/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imagenPrompt: analyzeData.imagenPrompt }),
+      });
+
+      if (!generateResponse.ok) {
+        const text = await generateResponse.text();
+        console.error("Generation Error:", generateResponse.status, text);
+        alert(`Errore generazione (${generateResponse.status}). Riprova.`);
+        return;
+      }
+
+      const generateData = await generateResponse.json();
+      if (generateData.success) {
+        setVtoResultImage(generateData.imageUrl);
+      } else {
+        alert(generateData.error || "Errore nella generazione finale.");
+      }
+
     } catch (error) {
-      console.error("VTO Error:", error);
-      alert("Errore di connessione al server VTO.");
+      console.error("VTO Process Error:", error);
+      alert("Errore di connessione al camerino.");
     } finally {
       setIsVtoProcessing(false);
+      setVtoPhase('idle');
     }
   };
 
@@ -480,7 +507,9 @@ export default function Product() {
                       {isVtoProcessing ? (
                         <>
                           <RefreshCw className="w-4 h-4 animate-spin" />
-                          <span>Elaborazione AI in corso...</span>
+                          <span>
+                            {vtoPhase === 'analyzing' ? 'Analizzando la foto...' : 'Creando il tuo outfit...'}
+                          </span>
                         </>
                       ) : (
                         <span>Genera Prova Virtuale</span>

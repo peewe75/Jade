@@ -26,56 +26,54 @@ const openai = new OpenAI({
 
 const router = express.Router();
 
-// VTO Endpoint
-router.post("/vto/process", upload.single("userImage"), async (req, res) => {
+/**
+ * STEP 1: Analyze images to create a descriptive prompt
+ * This allows us to split the long VTO process into two smaller requests
+ * to avoid Netlify's 10s function timeout.
+ */
+router.post('/vto/analyze', upload.single('userImage'), async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: "No user image provided." });
-    }
-
     const { productImageUrl, productName, productCategory } = req.body;
+    const userImageFile = req.file;
+
+    if (!userImageFile) {
+      return res.status(400).json({ error: "Foto utente richiesta." });
+    }
 
     if (!productImageUrl) {
-      return res.status(400).json({ error: "No product image URL provided." });
+      return res.status(400).json({ error: "URL immagine prodotto richiesto." });
     }
 
-    // 1. Fetch the product image
+    const userBase64 = userImageFile.buffer.toString('base64');
+    const userMimeType = userImageFile.mimetype;
+
+    // Fetch product image and convert to base64
     const productResponse = await fetch(productImageUrl);
-    const productBuffer = await productResponse.arrayBuffer();
+    const productBuffer = Buffer.from(await productResponse.arrayBuffer());
     const productMimeType = productResponse.headers.get('content-type') || 'image/jpeg';
-    const productBase64 = Buffer.from(productBuffer).toString("base64");
+    const productBase64 = productBuffer.toString('base64');
 
-    // 2. Analyze User Image and Product Image using a Vision model (Gemini 1.5 Flash is very cheap on OpenRouter)
-    const userImageBase64 = req.file.buffer.toString("base64");
-    const userMimeType = req.file.mimetype;
-
-    const analysisPrompt = `
-      You are an expert fashion stylist and AI prompt engineer.
-      I have provided two images:
-      1. A photo of a person (the user).
-      2. A photo of a clothing item: ${productName} (${productCategory}).
-
-      Your task is to write a highly detailed prompt for an image generation model (like Flux or Stable Diffusion) to generate a photorealistic image of this exact person wearing this exact clothing item.
-      
-      Analyze the person's pose, body type, lighting, and background.
-      Analyze the clothing item's fabric, color, cut, and style.
-      
-      Write a single, descriptive prompt (in English) that combines these elements. The prompt must describe the person exactly as they appear (hair, face, pose, background) but wearing the new clothing item.
-      
-      Return ONLY the prompt text, nothing else. No preamble.
-    `;
-
+    // Analysis using OpenRouter (multimodal vision)
     const analysisResponse = await openai.chat.completions.create({
-      model: "google/gemini-2.5-flash-image", // Updated vision model
+      model: "google/gemini-2.0-flash-001", // Fast and capable for vision
       messages: [
         {
           role: "user",
           content: [
-            { type: "text", text: analysisPrompt },
+            {
+              type: "text",
+              text: `You are an AI fashion stylist. Analyze these two images: 
+              1. A photo of a person.
+              2. A product photo of a "${productName}" (Category: ${productCategory}).
+              
+              Task: Create a highly detailed image generation prompt to show this person wearing the product. 
+              Describe the person's pose, the fit of the ${productName} on them, the lighting, and a high-end fashion editorial background.
+              Ensure the output is ONLY the descriptive prompt in English.`,
+            },
             {
               type: "image_url",
               image_url: {
-                url: `data:${userMimeType};base64,${userImageBase64}`,
+                url: `data:${userMimeType};base64,${userBase64}`,
               },
             },
             {
@@ -92,10 +90,29 @@ router.post("/vto/process", upload.single("userImage"), async (req, res) => {
     const imagenPrompt = analysisResponse.choices[0].message.content?.trim() || "";
 
     if (!imagenPrompt) {
-      throw new Error("Failed to generate image prompt from analysis.");
+      throw new Error("Impossibile generare il prompt dall'analisi.");
     }
 
-    // 3. Generate the final image using OpenRouter's multimodal chat endpoint (recommended for image generation)
+    res.json({ success: true, imagenPrompt });
+
+  } catch (error: any) {
+    console.error("VTO Analyze Error:", error);
+    res.status(500).json({ error: error.message || "Errore durante l'analisi delle foto." });
+  }
+});
+
+/**
+ * STEP 2: Generate the final image using the prompt from Step 1
+ */
+router.post('/vto/generate', async (req, res) => {
+  try {
+    const { imagenPrompt } = req.body;
+
+    if (!imagenPrompt) {
+      return res.status(400).json({ error: "Prompt immagine richiesto." });
+    }
+
+    // Generate the final image using OpenRouter's multimodal chat endpoint (GPT-5 Image or alternative)
     const generateResponse = await openai.chat.completions.create({
       model: "openai/gpt-5-image", 
       messages: [
@@ -104,7 +121,6 @@ router.post("/vto/process", upload.single("userImage"), async (req, res) => {
           content: imagenPrompt,
         }
       ],
-      // OpenRouter uses modalities: ["image"] for image generation via the completions endpoint
       // @ts-ignore
       modalities: ["image"],
     });
@@ -114,18 +130,17 @@ router.post("/vto/process", upload.single("userImage"), async (req, res) => {
 
     if (!imageUrl) {
       console.error("OpenRouter Vision/Imagen Response:", JSON.stringify(generateResponse, null, 2));
-      throw new Error("Failed to generate image URL from OpenRouter.");
+      throw new Error("Impossibile ottenere l'URL dell'immagine da OpenRouter.");
     }
 
     res.json({ 
       success: true, 
-      imageUrl: imageUrl,
-      promptUsed: imagenPrompt 
+      imageUrl: imageUrl
     });
 
   } catch (error: any) {
-    console.error("VTO Process Error:", error);
-    res.status(500).json({ error: error.message || "Failed to process Virtual Try-On." });
+    console.error("VTO Generate Error:", error);
+    res.status(500).json({ error: error.message || "Errore durante la generazione dell'immagine virtuale." });
   }
 });
 
