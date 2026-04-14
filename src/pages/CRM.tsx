@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { collection, addDoc, deleteDoc, doc, getDocs, serverTimestamp, updateDoc, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
-import { Search, Plus, RefreshCw, Users, Pencil, Trash2, Mail, Phone, Building2, BadgeCheck, Home, Package, UserRoundCheck, CheckCircle2, Circle, FileText, X, Activity, AlertCircle, Clock, User, Tag as TagIcon } from 'lucide-react';
+import { Search, Plus, RefreshCw, Users, Pencil, Trash2, Mail, Phone, Building2, BadgeCheck, Home, Package, UserRoundCheck, CheckCircle2, Circle, FileText, X, Activity, AlertCircle, Clock, User, Heart, Tag as TagIcon } from 'lucide-react';
 import type { Client, ClientStage, ClientActivity, ClientTask, ClientTag } from '../types/crm';
 import { STAGE_OPTIONS, STAGE_LABELS } from '../types/crm';
 import { convertTimestamp, createActivity as createActivityFn, createTask as createTaskFn, updateTask as updateTaskFn, deleteTask as deleteTaskFn, getAllTags, getClientActivities, getClientTasks, importUsersToClients, getAllUsers, updateClientOwner, updateClientTags, isOverdue, isDueToday, type UserRecord } from '../lib/crm';
@@ -81,6 +81,7 @@ export default function CRM() {
   const [form, setForm] = useState<ClientFormData>(getInitialFormData());
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [quickFilter, setQuickFilter] = useState<string | null>(null);
+  const [favoritesCounts, setFavoritesCounts] = useState<Record<string, number>>({});
 
   const isAdminUser = Boolean(user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase()));
 
@@ -129,6 +130,21 @@ export default function CRM() {
         } as Client;
       });
       setClients(docs);
+
+      // Fetch favorites counts for all users to show badges
+      try {
+        const favsSnapshot = await getDocs(collection(db, 'user_favorites'));
+        const counts: Record<string, number> = {};
+        favsSnapshot.docs.forEach(doc => {
+          const items = doc.data().items || [];
+          if (items.length > 0) {
+            counts[doc.id] = items.length;
+          }
+        });
+        setFavoritesCounts(counts);
+      } catch (favErr) {
+        console.error('Error fetching favorites counts:', favErr);
+      }
     } catch (error) {
       console.error('Error fetching clients:', error);
     } finally {
@@ -708,13 +724,25 @@ export default function CRM() {
                   onClick={() => selectClient(client)}
                   className={`border bg-white p-5 flex flex-col md:flex-row md:items-start gap-4 cursor-pointer transition-colors ${selectedClient?.id === client.id ? 'border-brand-black ring-1 ring-brand-black' : 'border-gray-100 hover:border-gray-300'}`}
                 >
-                  <div className="w-12 h-12 rounded-full bg-brand-black text-white flex items-center justify-center shrink-0">
-                    <BadgeCheck className="w-5 h-5" />
+                  <div className="w-12 h-12 rounded-full bg-gray-100 text-brand-black flex items-center justify-center shrink-0 overflow-hidden border border-gray-100 shadow-sm">
+                    {client.photoURL ? (
+                      <img src={client.photoURL} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <User className="w-6 h-6 text-gray-400" />
+                    )}
                   </div>
                   <div className="flex-1">
                     <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
                       <div>
-                        <h3 className="text-lg font-serif">{client.name}</h3>
+                        <h3 className="text-lg font-serif flex items-center gap-2">
+                          {client.name}
+                          {client.uid && favoritesCounts[client.uid] > 0 && (
+                            <div className="flex items-center gap-1 bg-red-50 text-red-600 px-2 py-0.5 rounded-full border border-red-100 shadow-sm animate-pulse-slow" title={`${favoritesCounts[client.uid]} prodotti nei preferiti`}>
+                              <Heart className="w-3 h-3 fill-red-600" />
+                              <span className="text-[10px] font-bold font-sans">{favoritesCounts[client.uid]}</span>
+                            </div>
+                          )}
+                        </h3>
                         <div className="flex flex-wrap gap-3 text-sm text-gray-500 mt-2">
                           {client.email && <span className="flex items-center gap-1"><Mail className="w-4 h-4" />{client.email}</span>}
                           {client.phone && <span className="flex items-center gap-1"><Phone className="w-4 h-4" />{client.phone}</span>}
