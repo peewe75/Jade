@@ -66,7 +66,7 @@ router.post("/vto/process", upload.single("userImage"), async (req, res) => {
     `;
 
     const analysisResponse = await openai.chat.completions.create({
-      model: "google/gemini-flash-1.5", // Low cost vision model
+      model: "google/gemini-2.5-flash-image", // Updated vision model
       messages: [
         {
           role: "user",
@@ -95,13 +95,9 @@ router.post("/vto/process", upload.single("userImage"), async (req, res) => {
       throw new Error("Failed to generate image prompt from analysis.");
     }
 
-    // 3. Generate the final image using a high-quality model on OpenRouter (e.g., Flux Schnell)
-    // Note: OpenRouter's image generation endpoint is different: /api/v1/images/generations
-    // But as of now, many users use the completions endpoint for multimodal, 
-    // however for standard DALL-E/Flux usually we use the images.generate if supported.
-    
+    // 3. Generate the final image using GPT-5 Image model on OpenRouter
     const generateResponse = await openai.images.generate({
-      model: "black-forest-labs/flux-1-schnell", 
+      model: "openai/gpt-5-image", 
       prompt: imagenPrompt,
       n: 1,
       size: "1024x1024" as any,
