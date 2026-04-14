@@ -5,6 +5,7 @@ import { useParams, Link } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
+import Tilt from 'react-parallax-tilt';
 
 interface ProductData {
   id: string;
@@ -194,12 +195,25 @@ export default function Product() {
             className="aspect-[3/4] bg-gray-100 overflow-hidden cursor-zoom-in"
             onClick={() => heroImage && setLightboxImage(heroImage)}
           >
-            <img 
-              src={heroImage} 
-              alt={displayProduct.name} 
-              className="w-full h-full object-cover"
-              referrerPolicy="no-referrer"
-            />
+            <Tilt
+              className="w-full h-full"
+              tiltMaxAngleX={15}
+              tiltMaxAngleY={15}
+              perspective={1500}
+              scale={1.05}
+              transitionSpeed={1000}
+              gyroscope={true}
+              glareEnable={true}
+              glareMaxOpacity={0.25}
+              glarePosition="all"
+            >
+              <img 
+                src={heroImage} 
+                alt={displayProduct.name} 
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            </Tilt>
           </motion.div>
           {galleryImages.length > 0 && (
             <div className="grid grid-cols-4 gap-3">
