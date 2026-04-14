@@ -17,7 +17,7 @@ const router = express.Router();
 // Netlify sync function: timeout hard = 10s. Lasciamo 1s di margine al wrapping I/O.
 const AI_TIMEOUT_MS = 9000;
 const EXTERNAL_FETCH_TIMEOUT_MS = 3500;
-const VTO_MODEL = "google/gemini-2.5-flash-image-preview";
+const VTO_MODEL = "google/gemini-2.5-flash-image";
 
 function isLikelyBase64Image(value: unknown): value is string {
   return typeof value === 'string' && value.length > 100 && /^[A-Za-z0-9+/=\s]+$/.test(value.slice(0, 200));
