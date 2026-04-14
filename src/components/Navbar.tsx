@@ -253,9 +253,9 @@ export default function Navbar() {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed top-0 right-0 bottom-0 w-[90%] max-w-lg bg-white z-[70] shadow-2xl flex flex-col text-brand-black"
+              className="fixed top-0 right-0 bottom-0 w-[95%] max-w-xl bg-white z-[70] shadow-2xl flex flex-col text-brand-black"
             >
-              <div className="p-6 flex justify-between items-center border-b border-gray-100">
+              <div className="p-8 flex justify-between items-center border-b border-gray-100">
                 <div className="flex items-center space-x-2">
                   <Heart className="w-5 h-5 text-red-500 fill-red-500" />
                   <span className="font-serif text-xl tracking-widest uppercase font-semibold">Favorites</span>
@@ -265,7 +265,7 @@ export default function Navbar() {
                 </button>
               </div>
               
-              <div className="flex-grow overflow-y-auto p-6">
+              <div className="flex-grow overflow-y-auto p-8">
                 {favorites.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center space-y-4">
                     <Heart className="w-12 h-12 text-gray-100" />
@@ -290,7 +290,7 @@ export default function Navbar() {
                         <Link 
                           to={`/product/${product.id}`}
                           onClick={() => setIsFavoritesOpen(false)}
-                          className="w-24 h-32 shrink-0 bg-gray-100 overflow-hidden"
+                          className="w-32 h-40 shrink-0 bg-gray-100 overflow-hidden"
                         >
                           <img 
                             src={product.images[0]} 
