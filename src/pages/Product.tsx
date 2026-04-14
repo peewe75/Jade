@@ -3,8 +3,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, ChevronUp, Star, Camera, X, RefreshCw, Heart } from 'lucide-react';
 import { useFavorites } from '../contexts/FavoritesContext';
 import { useParams, Link } from 'react-router-dom';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
+import firebaseConfig from '../../firebase-applet-config.json';
 import { useAuth } from '../contexts/AuthContext';
 import Tilt from 'react-parallax-tilt';
 
@@ -120,22 +121,91 @@ export default function Product() {
     setOpenAccordion(openAccordion === id ? null : id);
   };
 
+  // Cleanup della sottoscrizione Firestore al risultato VTO (un solo listener alla volta).
+  const vtoUnsubRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    return () => {
+      vtoUnsubRef.current?.();
+      vtoUnsubRef.current = null;
+    };
+  }, []);
+
   const handleVtoSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!vtoFile || !vtoConsent || !displayProduct) return;
+    if (!user) {
+      alert("Devi essere loggata per usare il camerino virtuale.");
+      return;
+    }
+
+    // Chiudi eventuale listener precedente
+    vtoUnsubRef.current?.();
+    vtoUnsubRef.current = null;
 
     setIsVtoProcessing(true);
     setVtoResultImage(null);
     setVtoPhase('generating');
 
     try {
-      // Resize + compress lato client (Netlify limita ~6MB per function body)
+      // 1. Resize + compress lato client
       const { base64, mimeType } = await resizeAndEncodeImage(vtoFile, 1024, 0.85);
 
+      // 2. jobId casuale + ID token Firebase per autenticare la scrittura dal server
+      const jobId =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `job-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+      const idToken = await user.getIdToken();
+
+      // 3. Crea il doc pending in Firestore (il client è il primo writer)
+      const jobRef = doc(db, 'vto_jobs', jobId);
+      await setDoc(jobRef, {
+        userId: user.uid,
+        status: 'pending',
+        productId: displayProduct.id,
+        productName: displayProduct.name,
+        createdAt: serverTimestamp(),
+      });
+
+      // 4. Sottoscrivi il doc per ricevere il risultato quando il background finisce
+      const unsub = onSnapshot(
+        jobRef,
+        (snap) => {
+          const data = snap.data();
+          if (!data) return;
+          if (data.status === 'completed' && data.imageUrl) {
+            setVtoResultImage(data.imageUrl);
+            setIsVtoProcessing(false);
+            setVtoPhase('idle');
+            vtoUnsubRef.current?.();
+            vtoUnsubRef.current = null;
+          } else if (data.status === 'failed') {
+            alert(data.error || "Errore durante la generazione.");
+            setIsVtoProcessing(false);
+            setVtoPhase('idle');
+            vtoUnsubRef.current?.();
+            vtoUnsubRef.current = null;
+          }
+        },
+        (err) => {
+          console.error('VTO snapshot error:', err);
+          alert('Errore di connessione al camerino.');
+          setIsVtoProcessing(false);
+          setVtoPhase('idle');
+        }
+      );
+      vtoUnsubRef.current = unsub;
+
+      // 5. Triggera la background function. Netlify risponde 202 immediatamente.
       const response = await fetch('/api/vto/tryon', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          jobId,
+          userId: user.uid,
+          firebaseIdToken: idToken,
+          firebaseProjectId: firebaseConfig.projectId,
           userImageBase64: base64,
           userMimeType: mimeType,
           productImageUrl: displayProduct.images?.[0] || '',
@@ -144,27 +214,23 @@ export default function Product() {
         }),
       });
 
-      if (!response.ok) {
-        let errorMsg = `Errore camerino virtuale (${response.status})`;
-        try {
-          const errorData = await response.json();
-          errorMsg = errorData.error || errorMsg;
-        } catch {}
-        console.error("VTO Error:", errorMsg);
-        alert(errorMsg);
-        return;
+      // Una background function risponde 202; qualsiasi errore early significa
+      // che il job non è partito — dobbiamo annullare in UI.
+      if (response.status !== 202 && !response.ok) {
+        const text = await response.text().catch(() => '');
+        console.error('VTO start error:', response.status, text);
+        alert(`Impossibile avviare il camerino virtuale (${response.status}).`);
+        vtoUnsubRef.current?.();
+        vtoUnsubRef.current = null;
+        setIsVtoProcessing(false);
+        setVtoPhase('idle');
       }
-
-      const data = await response.json();
-      if (data.success && data.imageUrl) {
-        setVtoResultImage(data.imageUrl);
-      } else {
-        alert(data.error || "Errore durante la generazione.");
-      }
+      // In caso di successo (202), restiamo in attesa del listener onSnapshot.
     } catch (error) {
       console.error("VTO Process Error:", error);
       alert("Errore di connessione al camerino.");
-    } finally {
+      vtoUnsubRef.current?.();
+      vtoUnsubRef.current = null;
       setIsVtoProcessing(false);
       setVtoPhase('idle');
     }

@@ -4,6 +4,14 @@ service cloud.firestore {
     match /user_favorites/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
+    match /vto_jobs/{jobId} {
+      // Leggibile solo dal proprietario; il client crea il job con il proprio userId;
+      // la Netlify background function aggiorna il doc usando l'ID token dello stesso utente.
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      allow update: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
     match /products/{productId} {
       allow read: if true;
       allow write: if request.auth != null && request.auth.token.email in ["mmalinverno76@gmail.com", "mmalinverno@gmail.com", "peewe75@gmail.com", "avv.sapone@hotmail.it"];

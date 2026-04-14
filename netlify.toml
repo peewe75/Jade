@@ -10,6 +10,14 @@
   node_bundler = "esbuild"
 
 [[redirects]]
+  # Il virtual try-on usa una background function (timeout 15 min) invece della
+  # function sync (che ha cap 10s). Risponde 202 immediatamente e scrive il
+  # risultato in Firestore (`vto_jobs/{jobId}`) che il client osserva via onSnapshot.
+  from = "/api/vto/tryon"
+  to = "/.netlify/functions/vto-tryon-background"
+  status = 200
+
+[[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"
   status = 200
