@@ -3,17 +3,18 @@ import { Instagram, Facebook, Pin } from 'lucide-react';
 
 export default function SocialBar() {
   const socials = [
-    { icon: <Instagram className="w-4 h-4" />, href: 'https://instagram.com/theblondesconcept', label: 'Instagram' },
+    { icon: <Instagram className="w-4 h-4" />, href: 'https://www.instagram.com/theblondesbrand', label: 'Instagram' },
     { 
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
           <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" />
         </svg>
       ), 
-      href: '#', 
+      href: 'https://www.tiktok.com/@theblondesconcept', 
       label: 'TikTok' 
     },
-    { icon: <Pin className="w-4 h-4" />, href: '#', label: 'Pinterest' },
+    { icon: <Facebook className="w-4 h-4" />, href: 'https://www.facebook.com/theblondescubefashionstore', label: 'Facebook' },
+    { icon: <Pin className="w-4 h-4" />, href: 'https://it.pinterest.com/theblondesbrand/', label: 'Pinterest' },
   ];
 
   return (

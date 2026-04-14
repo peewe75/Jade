@@ -42,7 +42,7 @@ export default function Footer() {
             {/* Social Links - Elegant Icons */}
             <div className="flex space-x-5">
               <a 
-                href="https://instagram.com/theblondesconcept" 
+                href="https://www.instagram.com/theblondesbrand" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="w-10 h-10 rounded-full border border-gray-800 flex items-center justify-center hover:bg-white hover:text-brand-black transition-all duration-300"
@@ -51,7 +51,9 @@ export default function Footer() {
                 <Instagram className="w-4 h-4" />
               </a>
               <a 
-                href="#" 
+                href="https://www.tiktok.com/@theblondesconcept" 
+                target="_blank" 
+                rel="noopener noreferrer"
                 className="w-10 h-10 rounded-full border border-gray-800 flex items-center justify-center hover:bg-white hover:text-brand-black transition-all duration-300"
                 aria-label="TikTok"
               >
@@ -60,14 +62,16 @@ export default function Footer() {
                 </svg>
               </a>
               <a 
-                href="#" 
+                href="https://it.pinterest.com/theblondesbrand/" 
+                target="_blank" 
+                rel="noopener noreferrer"
                 className="w-10 h-10 rounded-full border border-gray-800 flex items-center justify-center hover:bg-white hover:text-brand-black transition-all duration-300"
                 aria-label="Pinterest"
               >
                 <Pin className="w-4 h-4" />
               </a>
               <a 
-                href="https://facebook.com/theblondesconcept" 
+                href="https://www.facebook.com/theblondescubefashionstore" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="w-10 h-10 rounded-full border border-gray-800 flex items-center justify-center hover:bg-white hover:text-brand-black transition-all duration-300"
