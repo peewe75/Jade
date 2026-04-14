@@ -113,11 +113,12 @@ router.post('/vto/generate', async (req, res) => {
       return res.status(400).json({ error: "Prompt immagine richiesto." });
     }
 
-    // List of high-quality image generation models on OpenRouter
+    // L'errore Sandbox.Timedout (30.00s) obbliga ad usare SOLO i modelli più veloci in assoluto
+    // I modelli Pro o di altissima qualità sforano spesso i 30 secondi e vengono uccisi da Netlify.
     const modelsToTry = [
-      "google/gemini-3.1-flash-image-preview", // Best quality/speed ratio from Google
-      "black-forest-labs/flux.2-pro", // Top tier quality from Black Forest Labs
-      "openai/gpt-5-image" // Best quality from OpenAI
+      "google/gemini-2.5-flash-image", // Estremamente veloce
+      "black-forest-labs/flux.2-klein-4b", // Altissima velocità
+      "google/imagen-3-fast" // Fallback ultra-rapido
     ];
 
     let lastError = null;
