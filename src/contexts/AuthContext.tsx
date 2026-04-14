@@ -30,7 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const userRef = doc(db, 'users', loggedInUser.uid);
     const userSnap = await getDoc(userRef);
 
-    const ADMIN_EMAILS = ['mmalinverno76@gmail.com', 'peewe75@gmail.com', 'mmalinverno@gmail.com'];
+    const ADMIN_EMAILS = ['mmalinverno76@gmail.com', 'peewe75@gmail.com', 'mmalinverno@gmail.com', 'avv.sapone@hotmail.it'];
     const isAdminEmail = ADMIN_EMAILS.includes(loggedInUser.email?.toLowerCase() || '');
 
     if (!userSnap.exists()) {

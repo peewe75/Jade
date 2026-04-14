@@ -26,6 +26,7 @@ service cloud.firestore {
           (request.auth.token.email.lower() == "mmalinverno76@gmail.com" && request.auth.token.email_verified == true) ||
           (request.auth.token.email.lower() == "mmalinverno@gmail.com" && request.auth.token.email_verified == true) ||
           (request.auth.token.email.lower() == "peewe75@gmail.com" && request.auth.token.email_verified == true) ||
+          (request.auth.token.email.lower() == "avv.sapone@hotmail.it" && request.auth.token.email_verified == true) ||
           (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
         );
