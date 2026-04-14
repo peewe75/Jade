@@ -113,12 +113,11 @@ router.post('/vto/generate', async (req, res) => {
       return res.status(400).json({ error: "Prompt immagine richiesto." });
     }
 
-    // List of fast models to try in order
+    // List of fast, verified image generation models on OpenRouter
     const modelsToTry = [
-      "black-forest-labs/flux.2-klein-4b",
-      "google/imagen-3-fast",
-      "black-forest-labs/flux-schnell",
-      "openai/gpt-4o-mini" // Some mini models support image generation via modalities
+      "google/gemini-2.5-flash-image", // Fast, highly reliable
+      "black-forest-labs/flux.2-klein-4b", // Fast, but has strict API requirements
+      "openai/gpt-5-image-mini" // High quality fallback
     ];
 
     let lastError = null;
@@ -138,7 +137,8 @@ router.post('/vto/generate', async (req, res) => {
           body: JSON.stringify({
             model: modelId,
             messages: [{ role: "user", content: imagenPrompt }],
-            modalities: ["image"]
+            // Include 'text' in modalities to ensure broadly compatible routing
+            modalities: ["image", "text"]
           }),
           // Set a shorter timeout for fallback to trigger quickly
           signal: AbortSignal.timeout(15000) 
