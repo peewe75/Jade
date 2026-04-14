@@ -112,25 +112,42 @@ router.post('/vto/generate', async (req, res) => {
       return res.status(400).json({ error: "Prompt immagine richiesto." });
     }
 
-    // Generate the final image using a faster model (Flux.2 Klein)
-    const generateResponse = await openai.chat.completions.create({
-      model: "black-forest-labs/flux.2-klein-4b", 
-      messages: [
-        {
-          role: "user",
-          content: imagenPrompt,
-        }
-      ],
-      // @ts-ignore
-      modalities: ["image"],
+    // Use direct fetch to OpenRouter to ensure modalities: ["image"] is handled correctly
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://theblondes.it",
+        "X-Title": "The Blondes CRM",
+      },
+      body: JSON.stringify({
+        model: "black-forest-labs/flux.2-klein-4b",
+        messages: [
+          {
+            role: "user",
+            content: imagenPrompt
+          }
+        ],
+        modalities: ["image"]
+      })
     });
 
-    const imageData = (generateResponse.choices[0].message as any).images?.[0];
-    const imageUrl = imageData?.url || imageData;
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("OpenRouter API Error:", JSON.stringify(errorData, null, 2));
+      return res.status(response.status).json({ 
+        error: errorData.error?.message || "Errore nella comunicazione con il fornitore AI (400 Provider Error)." 
+      });
+    }
+
+    const data = await response.json();
+    const imageData = data.choices?.[0]?.message?.images?.[0] || data.choices?.[0]?.message?.content;
+    const imageUrl = typeof imageData === 'string' ? imageData : imageData?.url;
 
     if (!imageUrl) {
-      console.error("OpenRouter Vision/Imagen Response:", JSON.stringify(generateResponse, null, 2));
-      throw new Error("Impossibile ottenere l'URL dell'immagine da OpenRouter.");
+      console.error("Unexpected OpenRouter Response:", JSON.stringify(data, null, 2));
+      throw new Error("Impossibile ottenere l'URL dell'immagine dal risultato.");
     }
 
     res.json({ 
