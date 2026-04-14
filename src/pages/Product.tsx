@@ -316,11 +316,11 @@ export default function Product() {
                 onClick={() => {
                   if (displayProduct) {
                     toggleFavorite({
-                      id: displayProduct.id,
+                      id: displayProduct.id || id || '1',
                       name: displayProduct.name,
-                      price: displayProduct.price,
-                      images: displayProduct.images
-                    });
+                      price: typeof displayProduct.price === 'number' ? displayProduct.price : Number(displayProduct.price),
+                      images: Array.isArray(displayProduct.images) ? displayProduct.images : [displayProduct.image || '']
+                    } as any);
                   }
                 }}
                 className={`w-full py-4 uppercase tracking-widest text-sm font-medium transition-all flex items-center justify-center space-x-2 border border-gray-100 ${

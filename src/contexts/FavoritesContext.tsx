@@ -60,7 +60,7 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      await updateDoc(favoritesRef, { items: newFavorites });
+      await setDoc(favoritesRef, { items: newFavorites }, { merge: true });
     } catch (error) {
       console.error("Error updating favorites:", error);
     }
