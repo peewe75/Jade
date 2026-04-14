@@ -158,8 +158,8 @@ router.post('/vto/generate', async (req, res) => {
       "google/gemini-2.0-flash-001" // High-speed fallback
     ];
 
-    try {
-      console.log(`Attempting image generation via OpenRouter: ${modelsList[0]}`);
+      const modelToUse = modelsList[0];
+      console.log(`Attempting image generation via OpenRouter: ${modelToUse}`);
       
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
@@ -170,7 +170,7 @@ router.post('/vto/generate', async (req, res) => {
           "X-Title": "The Blondes CRM",
         },
         body: JSON.stringify({
-          model: "black-forest-labs/flux.2-klein-4b", 
+          model: modelToUse, 
           messages: [
             { 
               role: "user", 
@@ -185,9 +185,9 @@ router.post('/vto/generate', async (req, res) => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        console.warn(`All routed models failed:`, errorData);
-        return res.status(500).json({ error: `Generazione fallita sul provider. Errore: ${errorData.error?.message || response.statusText}` });
+        const errorData = await response.json().catch(() => ({}));
+        console.warn(`API call failed:`, errorData);
+        throw new Error(`Generazione fallita sul provider. Errore: ${errorData.error?.message || response.statusText}`);
       }
 
       const data = await response.json();
@@ -195,9 +195,7 @@ router.post('/vto/generate', async (req, res) => {
       // Handle OpenRouter internal errors that come with 200 status
       if (data.error) {
         console.error("OpenRouter Internal Error:", JSON.stringify(data.error));
-        return res.status(500).json({ 
-          error: `Il fornitore AI ha restituito un errore: ${data.error.message || "Errore sconosciuto"}. Riprova tra un istante.` 
-        });
+        throw new Error(`Il fornitore AI ha restituito un errore: ${data.error.message || "Errore sconosciuto"}. Riprova tra un istante.`);
       }
 
       // Try different common paths for the image URL in the response
@@ -209,47 +207,37 @@ router.post('/vto/generate', async (req, res) => {
 
       if (!finalImageUrl || finalImageUrl.length < 10) {
           console.error("OpenRouter Empty Response Data:", JSON.stringify(data, null, 2));
-          throw new Error(`OpenRouter ha risposto senza un URL immagine valido. Risposta raw: ${JSON.stringify(data)}`);
+          throw new Error(`OpenRouter ha risposto senza un URL immagine valido.`);
       }
 
       // Normalize and extract valid image URL or Base64 format
       if (!finalImageUrl.startsWith('http') && !finalImageUrl.startsWith('data:')) {
-        const markdownImgMatch = finalImageUrl.match(/!\[.*?\]\((https?:\/\/[^\s\)]+)\)/);
-        if (markdownImgMatch && markdownImgMatch[1]) {
-          finalImageUrl = markdownImgMatch[1];
+        const urlMatch = finalImageUrl.match(/(https?:\/\/[^\s\)]+)/);
+        if (urlMatch && urlMatch[1]) {
+          finalImageUrl = urlMatch[1];
+        } else if (finalImageUrl.length > 500) {
+          finalImageUrl = `data:image/jpeg;base64,${finalImageUrl}`;
         } else {
-          const urlMatch = finalImageUrl.match(/(https?:\/\/[^\s\)]+)/);
-          if (urlMatch && urlMatch[1]) {
-            finalImageUrl = urlMatch[1];
-          } else if (finalImageUrl.length > 500) {
-            finalImageUrl = `data:image/jpeg;base64,${finalImageUrl}`;
-          } else {
-             throw new Error(`Risposta AI incomprensibile (né url né immagine base64): ${finalImageUrl.substring(0, 100)}...`);
-          }
+           throw new Error(`Risposta AI incomprensibile.`);
         }
       }
 
-      const modelUsedDataResult = data.model || modelsList[0];
-      console.log(`Successfully generated image. Final model reported by OpenRouter: ${modelUsedDataResult}`);
+      const modelUsedDataResult = data.model || modelToUse;
+      console.log(`Successfully generated image. Final model: ${modelUsedDataResult}`);
       
-      return res.json({ success: true, imageUrl: finalImageUrl, modelUsed: modelUsedDataResult });
-
-    } catch (err: any) {
-      console.error(`VTO Generation Block Error:`, err.message);
-      
-      if (err.name === 'TimeoutError' || err.message.includes('timeout') || err.message.includes('aborted')) {
-          return res.status(500).json({ 
-              error: "Il modello sta impiegando troppo tempo a generare l'immagine. Netlify ha un limite di 30 secondi. Riprova tra poco." 
-          });
-      }
-
-      return res.status(500).json({ error: err.message });
-    }
+      res.json({ success: true, imageUrl: finalImageUrl, modelUsed: modelUsedDataResult });
 
     } catch (error: any) {
-      console.error("VTO Generate System Error:", error);
+      console.error("VTO Generate System Error:", error.message);
+      
+      const isTimeout = error.name === 'TimeoutError' || error.message.includes('timeout') || error.message.includes('aborted');
+      
       if (!res.headersSent) {
-        res.status(500).json({ error: error.message || "Errore critico durante la generazione." });
+        res.status(500).json({ 
+          error: isTimeout 
+            ? "Il modello sta impiegando troppo tempo (limite 30s). Riprova tra poco." 
+            : (error.message || "Errore critico durante la generazione.") 
+        });
       }
     }
   });
