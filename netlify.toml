@@ -8,7 +8,6 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
-  timeout = 60
 
 [[redirects]]
   from = "/api/*"
