@@ -153,11 +153,32 @@ router.post('/vto/generate', async (req, res) => {
 
         const data = await response.json();
         const imageData = data.choices?.[0]?.message?.images?.[0] || data.choices?.[0]?.message?.content;
-        const imageUrl = typeof imageData === 'string' ? imageData : imageData?.url;
+        let finalImageUrl = typeof imageData === 'string' ? imageData : imageData?.url;
 
-        if (imageUrl) {
+        if (finalImageUrl) {
+          // Normalize and extract valid image URL or Base64 format
+          if (!finalImageUrl.startsWith('http') && !finalImageUrl.startsWith('data:')) {
+            // Se è una stringa in puro Base64, aggiungiamo il prefisso
+            // Se invece è un markdown ![image](URL), usiamo regex per estrarlo
+            const markdownImgMatch = finalImageUrl.match(/!\[.*?\]\((https?:\/\/[^\s\)]+)\)/);
+            if (markdownImgMatch && markdownImgMatch[1]) {
+              finalImageUrl = markdownImgMatch[1];
+            } else {
+              const urlMatch = finalImageUrl.match(/(https?:\/\/[^\s\)]+)/);
+              if (urlMatch && urlMatch[1]) {
+                finalImageUrl = urlMatch[1];
+              } else if (finalImageUrl.length > 500) {
+                // Heuristic: If it's a huge string and not a URL, it's likely raw Base64 Data
+                finalImageUrl = `data:image/jpeg;base64,${finalImageUrl}`;
+              } else {
+                 console.warn(`Model ${modelId} returned unexplained string:`, finalImageUrl);
+                 continue; // Modello ha restituito testo incomprensibile, passiamo al prossimo
+              }
+            }
+          }
+
           console.log(`Successfully generated image with model: ${modelId}`);
-          return res.json({ success: true, imageUrl, modelUsed: modelId });
+          return res.json({ success: true, imageUrl: finalImageUrl, modelUsed: modelId });
         }
       } catch (err: any) {
         console.warn(`Error with model ${modelId}:`, err.message);
