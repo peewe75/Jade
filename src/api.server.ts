@@ -69,52 +69,63 @@ router.post('/vto/analyze', upload.single('userImage'), async (req, res) => {
 
     console.log(`VTO Analyze: Starting analysis with Gemini 2.0 Flash...`);
 
-    // Analysis using OpenRouter (multimodal vision)
-    const analysisResponse = await openai.chat.completions.create({
-      model: "google/gemini-2.0-flash-001", // Fast and capable for vision
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: `You are an AI fashion stylist. Analyze these two images: 
-              1. A photo of a person.
-              2. A product photo of a "${productName}" (Category: ${productCategory}).
-              
-              Task: Create a highly detailed image generation prompt to show this person wearing the product. 
-              Describe the person's pose, the fit of the ${productName} on them, the lighting, and a high-end fashion editorial background.
-              Ensure the output is ONLY the descriptive prompt in English.`,
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:${userMimeType};base64,${userBase64}`,
+    const analysisResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.0-flash-001",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `You are an AI fashion stylist. Analyze these two images: 
+                1. A photo of a person.
+                2. A product photo of a "${productName}".
+                
+                Task: Create a highly detailed image generation prompt (in English) to show this person wearing the product. 
+                Focus on fit, posture, and lighting. Output ONLY the prompt string.`,
               },
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:${productMimeType};base64,${productBase64}`,
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:${userMimeType};base64,${userBase64}`,
+                },
               },
-            },
-          ],
-        },
-      ],
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:${productMimeType};base64,${productBase64}`,
+                },
+              },
+            ],
+          },
+        ],
+      }),
+      signal: AbortSignal.timeout(25000)
     });
 
-    const analyzeData = await analysisResponse;
-    
-    // Check for internal OpenRouter errors (returned with 200 OK)
-    if ((analyzeData as any).error) {
-        console.error("OpenRouter Analyze Internal Error:", (analyzeData as any).error);
-        return res.status(500).json({ error: `Errore analisi AI: ${(analyzeData as any).error.message}` });
+    if (!analysisResponse.ok) {
+      const errorText = await analysisResponse.text();
+      console.error("Analysis API Error:", analysisResponse.status, errorText);
+      throw new Error(`Errore durante l'analisi visiva (${analysisResponse.status}). Per favore riduci le dimensioni della foto o riprova.`);
     }
 
-    const imagenPrompt = analysisResponse.choices[0].message.content?.trim() || "";
+    const analyzeData = await analysisResponse.json();
+    
+    if (analyzeData.error) {
+        console.error("OpenRouter Analyze Internal Error:", analyzeData.error);
+        throw new Error(`Errore interno AI: ${analyzeData.error.message || "Risorsa non disponibile"}`);
+    }
 
-    if (!imagenPrompt) {
-      throw new Error("Impossibile generare le istruzioni per il camerino.");
+    const imagenPrompt = analyzeData.choices?.[0]?.message?.content?.trim() || "";
+
+    if (!imagenPrompt || imagenPrompt.length < 5) {
+      throw new Error("L'intelligenza artificiale non ha generato un prompt valido. Prova con una foto diversa.");
     }
 
     res.json({ success: true, imagenPrompt });

@@ -96,9 +96,15 @@ export default function Product() {
       });
 
       if (!analyzeResponse.ok) {
-        const text = await analyzeResponse.text();
-        console.error("Analysis Error:", analyzeResponse.status, text);
-        alert(`Errore analisi (${analyzeResponse.status}). Riprova.`);
+        let errorMsg = `Errore analisi (${analyzeResponse.status})`;
+        try {
+          const errorData = await analyzeResponse.json();
+          errorMsg = errorData.error || errorMsg;
+        } catch (e) {}
+        
+        console.error("Analysis Error Details:", errorMsg);
+        alert(errorMsg);
+        setIsVtoProcessing(false);
         return;
       }
 

@@ -1,12 +1,13 @@
-import { ShoppingBag, Menu, Search, User } from 'lucide-react';
+import { ShoppingBag, Menu, X, Search, User } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
   const { user, logout } = useAuth();
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
@@ -48,7 +49,10 @@ export default function Navbar() {
         <div className="flex justify-between items-center h-20">
           {/* Left: Menu & Search */}
           <div className="flex items-center space-x-6 flex-1">
-            <button className="p-2 hover:opacity-70 transition-opacity md:hidden">
+            <button 
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="p-2 hover:opacity-70 transition-opacity md:hidden"
+            >
               <Menu className="w-5 h-5" />
             </button>
             <div className="hidden md:flex space-x-6 text-sm uppercase tracking-widest font-medium">
@@ -113,16 +117,80 @@ export default function Navbar() {
                 <User className="w-5 h-5" />
               </Link>
             )}
-            
-            <button className="p-2 hover:opacity-70 transition-opacity relative">
-              <ShoppingBag className="w-5 h-5" />
-              <span className="absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                2
-              </span>
-            </button>
           </div>
         </div>
       </div>
+
+      {/* Mobile Menu Overlay */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]"
+            />
+            <motion.div
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed top-0 left-0 bottom-0 w-[80%] max-w-sm bg-white z-[70] shadow-2xl flex flex-col"
+            >
+              <div className="p-6 flex justify-between items-center border-b border-gray-100">
+                <span className="font-serif text-xl tracking-widest uppercase font-semibold">Menu</span>
+                <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 -mr-2">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              
+              <div className="flex-grow overflow-y-auto py-8 px-6 space-y-8">
+                <div className="space-y-6">
+                  <Link 
+                    to="/shop" 
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block text-2xl font-serif tracking-wide hover:pl-2 transition-all"
+                  >
+                    Shop
+                  </Link>
+                  <Link 
+                    to="/about" 
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block text-2xl font-serif tracking-wide hover:pl-2 transition-all"
+                  >
+                    The Brand
+                  </Link>
+                </div>
+
+                <div className="pt-8 border-t border-gray-100 space-y-4">
+                  {!user && (
+                    <Link 
+                      to="/login" 
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className="flex items-center space-x-3 text-lg"
+                    >
+                      <User className="w-5 h-5" />
+                      <span>Sign In</span>
+                    </Link>
+                  )}
+                  <button className="flex items-center space-x-3 text-lg">
+                    <Search className="w-5 h-5" />
+                    <span>Search</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-gray-100">
+                <p className="text-xs text-gray-400 uppercase tracking-widest text-center">
+                  © {new Date().getFullYear()} The Blondes Concept
+                </p>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </motion.nav>
   );
 }
