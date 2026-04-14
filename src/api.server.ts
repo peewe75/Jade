@@ -103,6 +103,7 @@ router.post('/vto/analyze', upload.single('userImage'), async (req, res) => {
 
 /**
  * STEP 2: Generate the final image using the prompt from Step 1
+ * Uses a robust fallback system to try multiple fast models if one fails.
  */
 router.post('/vto/generate', async (req, res) => {
   try {
@@ -112,52 +113,66 @@ router.post('/vto/generate', async (req, res) => {
       return res.status(400).json({ error: "Prompt immagine richiesto." });
     }
 
-    // Use direct fetch to OpenRouter to ensure modalities: ["image"] is handled correctly
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://theblondes.it",
-        "X-Title": "The Blondes CRM",
-      },
-      body: JSON.stringify({
-        model: "black-forest-labs/flux.2-klein-4b",
-        messages: [
-          {
-            role: "user",
-            content: imagenPrompt
-          }
-        ],
-        modalities: ["image"]
-      })
-    });
+    // List of fast models to try in order
+    const modelsToTry = [
+      "black-forest-labs/flux.2-klein-4b",
+      "google/imagen-3-fast",
+      "black-forest-labs/flux-schnell",
+      "openai/gpt-4o-mini" // Some mini models support image generation via modalities
+    ];
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error("OpenRouter API Error:", JSON.stringify(errorData, null, 2));
-      return res.status(response.status).json({ 
-        error: errorData.error?.message || "Errore nella comunicazione con il fornitore AI (400 Provider Error)." 
-      });
+    let lastError = null;
+
+    for (const modelId of modelsToTry) {
+      try {
+        console.log(`Attempting image generation with model: ${modelId}`);
+        
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://theblondes.it",
+            "X-Title": "The Blondes CRM",
+          },
+          body: JSON.stringify({
+            model: modelId,
+            messages: [{ role: "user", content: imagenPrompt }],
+            modalities: ["image"]
+          }),
+          // Set a shorter timeout for fallback to trigger quickly
+          signal: AbortSignal.timeout(15000) 
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.warn(`Model ${modelId} failed:`, errorData.error?.message || response.statusText);
+          lastError = errorData.error?.message || `Status ${response.status}`;
+          continue; // Try next model
+        }
+
+        const data = await response.json();
+        const imageData = data.choices?.[0]?.message?.images?.[0] || data.choices?.[0]?.message?.content;
+        const imageUrl = typeof imageData === 'string' ? imageData : imageData?.url;
+
+        if (imageUrl) {
+          console.log(`Successfully generated image with model: ${modelId}`);
+          return res.json({ success: true, imageUrl, modelUsed: modelId });
+        }
+      } catch (err: any) {
+        console.warn(`Error with model ${modelId}:`, err.message);
+        lastError = err.message;
+      }
     }
 
-    const data = await response.json();
-    const imageData = data.choices?.[0]?.message?.images?.[0] || data.choices?.[0]?.message?.content;
-    const imageUrl = typeof imageData === 'string' ? imageData : imageData?.url;
-
-    if (!imageUrl) {
-      console.error("Unexpected OpenRouter Response:", JSON.stringify(data, null, 2));
-      throw new Error("Impossibile ottenere l'URL dell'immagine dal risultato.");
-    }
-
-    res.json({ 
-      success: true, 
-      imageUrl: imageUrl
+    // If all models fail
+    res.status(500).json({ 
+      error: `Tutti i tentativi di generazione sono falliti. Ultimo errore: ${lastError}` 
     });
 
   } catch (error: any) {
-    console.error("VTO Generate Error:", error);
-    res.status(500).json({ error: error.message || "Errore durante la generazione dell'immagine virtuale." });
+    console.error("VTO Generate System Error:", error);
+    res.status(500).json({ error: error.message || "Errore critico durante la generazione." });
   }
 });
 
