@@ -476,6 +476,19 @@ export default function Product() {
                       >
                         {vtoFile ? (
                           <div className="relative w-full h-full">
+                            <button 
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setVtoFile(null);
+                                if (fileInputRef.current) fileInputRef.current.value = '';
+                              }}
+                              className="absolute top-2 right-2 z-20 w-8 h-8 bg-black/50 hover:bg-black/80 text-white rounded-full flex items-center justify-center backdrop-blur-sm transition-all shadow-lg"
+                              title="Rimuovi foto"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
                             {vtoPreviewImage && (
                               <img
                                 src={vtoPreviewImage}

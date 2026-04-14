@@ -5,6 +5,7 @@
 
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { FavoritesProvider } from './contexts/FavoritesContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ScrollToTop from './components/ScrollToTop';
@@ -21,24 +22,26 @@ import Inventory from './pages/Inventory';
 export default function App() {
   return (
     <AuthProvider>
-      <Router>
-        <ScrollToTop />
-        <div className="min-h-screen flex flex-col">
-          <Navbar />
-          <SocialBar />
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/shop" element={<Shop />} />
-            <Route path="/product/:id" element={<Product />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/admin" element={<Admin />} />
-            <Route path="/admin/crm" element={<CRM />} />
-            <Route path="/admin/inventory" element={<Inventory />} />
-          </Routes>
-          <Footer />
-        </div>
-      </Router>
+      <FavoritesProvider>
+        <Router>
+          <ScrollToTop />
+          <div className="min-h-screen flex flex-col">
+            <Navbar />
+            <SocialBar />
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/shop" element={<Shop />} />
+              <Route path="/product/:id" element={<Product />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/admin" element={<Admin />} />
+              <Route path="/admin/crm" element={<CRM />} />
+              <Route path="/admin/inventory" element={<Inventory />} />
+            </Routes>
+            <Footer />
+          </div>
+        </Router>
+      </FavoritesProvider>
     </AuthProvider>
   );
 }

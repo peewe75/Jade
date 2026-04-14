@@ -1,15 +1,18 @@
-import { ShoppingBag, Menu, X, Search, User } from 'lucide-react';
+import { ShoppingBag, Menu, X, Search, User, Heart } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useFavorites } from '../contexts/FavoritesContext';
 
 export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isFavoritesOpen, setIsFavoritesOpen] = useState(false);
   const location = useLocation();
   const { user, logout } = useAuth();
+  const { favorites, toggleFavorite } = useFavorites();
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
   
   // Force solid background if not on home page
@@ -71,8 +74,19 @@ export default function Navbar() {
             </Link>
           </div>
 
-          {/* Right: Account & Cart */}
+          {/* Right: Account & Search */}
           <div className="flex items-center justify-end space-x-4 flex-1">
+            <button 
+              onClick={() => setIsFavoritesOpen(true)}
+              className="p-2 hover:opacity-70 transition-opacity relative"
+            >
+              <Heart className={`w-5 h-5 ${favorites.length > 0 ? 'text-red-500 fill-red-500' : ''}`} />
+              {favorites.length > 0 && (
+                <span className="absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                  {favorites.length}
+                </span>
+              )}
+            </button>
             {user ? (
               <div ref={accountMenuRef} className="relative hidden sm:block">
                 <button
@@ -162,6 +176,16 @@ export default function Navbar() {
                   >
                     The Brand
                   </Link>
+                  <button 
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      setIsFavoritesOpen(true);
+                    }}
+                    className="flex items-center space-x-3 text-2xl font-serif tracking-wide hover:pl-2 transition-all"
+                  >
+                    <span>My Favorites</span>
+                    {favorites.length > 0 && <span className="text-sm font-sans bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center">{favorites.length}</span>}
+                  </button>
                 </div>
 
                 <div className="pt-8 border-t border-gray-100 space-y-4">
@@ -187,6 +211,107 @@ export default function Navbar() {
                   © {new Date().getFullYear()} The Blondes Concept
                 </p>
               </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Favorites Drawer Overlay */}
+      <AnimatePresence>
+        {isFavoritesOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsFavoritesOpen(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]"
+            />
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed top-0 right-0 bottom-0 w-[90%] max-w-md bg-white z-[70] shadow-2xl flex flex-col"
+            >
+              <div className="p-6 flex justify-between items-center border-b border-gray-100">
+                <div className="flex items-center space-x-2">
+                  <Heart className="w-5 h-5 text-red-500 fill-red-500" />
+                  <span className="font-serif text-xl tracking-widest uppercase font-semibold">Favorites</span>
+                </div>
+                <button onClick={() => setIsFavoritesOpen(false)} className="p-2 -mr-2">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              
+              <div className="flex-grow overflow-y-auto p-6">
+                {favorites.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center space-y-4">
+                    <Heart className="w-12 h-12 text-gray-100" />
+                    <div>
+                      <h3 className="text-lg font-medium">Your wishlist is empty</h3>
+                      <p className="text-sm text-gray-500 mt-2">Save your favorite items to keep track of what you love.</p>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        setIsFavoritesOpen(false);
+                        location.pathname !== '/shop' && window.scrollTo(0, 0);
+                      }}
+                      className="mt-4 px-8 py-3 bg-brand-black text-white text-xs uppercase tracking-widest font-medium hover:opacity-80 transition-opacity"
+                    >
+                      Explore Collection
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {favorites.map((product) => (
+                      <div key={product.id} className="flex space-x-4 group">
+                        <Link 
+                          to={`/product/${product.id}`}
+                          onClick={() => setIsFavoritesOpen(false)}
+                          className="w-24 h-32 shrink-0 bg-gray-100 overflow-hidden"
+                        >
+                          <img 
+                            src={product.images[0]} 
+                            alt={product.name} 
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                          />
+                        </Link>
+                        <div className="flex-grow flex flex-col justify-between py-1">
+                          <div>
+                            <Link 
+                              to={`/product/${product.id}`}
+                              onClick={() => setIsFavoritesOpen(false)}
+                              className="block text-sm font-medium hover:text-gray-600 transition-colors"
+                            >
+                              {product.name}
+                            </Link>
+                            <p className="text-sm text-gray-500 mt-1">€{product.price.toFixed(2)}</p>
+                          </div>
+                          <button 
+                            onClick={() => toggleFavorite(product)}
+                            className="text-[10px] uppercase tracking-widest text-gray-400 hover:text-red-500 transition-colors w-fit"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {favorites.length > 0 && (
+                <div className="p-6 border-t border-gray-100">
+                  <Link 
+                    to="/shop" 
+                    onClick={() => setIsFavoritesOpen(false)}
+                    className="block w-full text-center py-4 bg-brand-black text-white text-xs uppercase tracking-widest font-medium hover:opacity-90 transition-opacity"
+                  >
+                    Continue Shopping
+                  </Link>
+                </div>
+              )}
             </motion.div>
           </>
         )}
