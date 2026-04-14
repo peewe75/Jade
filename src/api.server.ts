@@ -1,7 +1,5 @@
 import express from "express";
-import multer from "multer";
 import cors from "cors";
-import OpenAI from "openai";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -9,167 +7,94 @@ dotenv.config();
 const app = express();
 
 app.use(cors());
-app.use(express.json({ limit: '20mb' }));
-app.use(express.urlencoded({ limit: '20mb', extended: true }));
-const upload = multer({ storage: multer.memoryStorage() });
-
-// Initialize OpenRouter client
-const openai = new OpenAI({
-  baseURL: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY,
-  defaultHeaders: {
-    "HTTP-Referer": "https://theblondes.it", // Optional, for OpenRouter rankings
-    "X-Title": "The Blondes CRM", // Optional, for OpenRouter rankings
-  }
-});
+// Body limit 8mb: abbondantemente sotto il tetto ~6mb di Netlify, ma utile in dev dove non c'è il limite.
+// I client sono tenuti a ridimensionare le immagini prima dell'upload.
+app.use(express.json({ limit: '8mb' }));
+app.use(express.urlencoded({ limit: '8mb', extended: true }));
 
 const router = express.Router();
 
-/**
- * STEP 1: Analyze images to create a descriptive prompt
- * This allows us to split the long VTO process into two smaller requests
- * to avoid Netlify's 10s function timeout.
- */
-router.post('/vto/analyze', upload.single('userImage'), async (req, res) => {
+// Netlify sync function: timeout hard = 10s. Lasciamo 2s di margine al wrapping I/O.
+const ANALYZE_AI_TIMEOUT_MS = 8000;
+const GENERATE_AI_TIMEOUT_MS = 8000;
+const EXTERNAL_FETCH_TIMEOUT_MS = 4000;
+
+function isLikelyBase64Image(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 100 && /^[A-Za-z0-9+/=\s]+$/.test(value.slice(0, 200));
+}
+
+async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    console.log("VTO Analyze Request Body:", JSON.stringify(req.body, null, 2));
-    console.log("VTO Analyze File Info:", req.file ? {
-      fieldname: req.file.fieldname,
-      originalname: req.file.originalname,
-      mimetype: req.file.mimetype,
-      size: req.file.size
-    } : "MISSING FILE");
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
-    const { productImageUrl, productName, productCategory } = req.body;
-    const userImageFile = req.file;
+/**
+ * STEP 1: Analyze images to create a descriptive prompt.
+ * Accetta JSON: { userImageBase64, userMimeType, productImageUrl, productName, productCategory }
+ * Niente multipart/multer: in serverless (Netlify) multer è fragile e spesso causa 400.
+ */
+router.post('/vto/analyze', async (req, res) => {
+  try {
+    const {
+      userImageBase64,
+      userMimeType: userMimeTypeRaw,
+      productImageUrl,
+      productName,
+      productCategory,
+    } = (req.body ?? {}) as {
+      userImageBase64?: string;
+      userMimeType?: string;
+      productImageUrl?: string;
+      productName?: string;
+      productCategory?: string;
+    };
 
-    if (!userImageFile) {
-      return res.status(400).json({ error: "Foto utente richiesta (file mancante)." });
+    if (!userImageBase64 || !isLikelyBase64Image(userImageBase64)) {
+      return res.status(400).json({ error: "Foto utente mancante o non valida." });
+    }
+    if (!productImageUrl || typeof productImageUrl !== 'string') {
+      return res.status(400).json({ error: "URL immagine prodotto mancante." });
+    }
+    if (!productName) {
+      return res.status(400).json({ error: "Nome prodotto mancante." });
     }
 
-    if (!productImageUrl) {
-      return res.status(400).json({ error: "URL immagine prodotto richiesto (campo mancante)." });
-    }
+    const userMimeType = userMimeTypeRaw || 'image/jpeg';
 
-    const userBase64 = userImageFile.buffer.toString('base64');
-    const userMimeType = userImageFile.mimetype;
-
-    // Build absolute URL for product image if it's relative
+    // Ricostruisci URL assoluto se relativo
     let absoluteProductUrl = productImageUrl;
-    if (productImageUrl.startsWith('/') || !productImageUrl.startsWith('http')) {
-      const protocol = req.headers['x-forwarded-proto'] || 'https';
+    if (!/^https?:\/\//i.test(productImageUrl)) {
+      const protocol = (req.headers['x-forwarded-proto'] as string) || 'https';
       const host = req.headers['host'];
-      // Remove leading slash if present to avoid double slash
       const cleanPath = productImageUrl.startsWith('/') ? productImageUrl.slice(1) : productImageUrl;
       absoluteProductUrl = `${protocol}://${host}/${cleanPath}`;
     }
 
-    console.log(`VTO Analyze: Fetching product image from ${absoluteProductUrl}`);
+    console.log(`VTO Analyze: fetching product image from ${absoluteProductUrl}`);
 
-    // Fetch product image and convert to base64
-    const productResponse = await fetch(absoluteProductUrl);
+    const productResponse = await fetchWithTimeout(absoluteProductUrl, EXTERNAL_FETCH_TIMEOUT_MS);
     if (!productResponse.ok) {
-        throw new Error(`Impossibile scaricare l'immagine del prodotto (${productResponse.status})`);
+      return res.status(502).json({
+        error: `Impossibile scaricare l'immagine del prodotto (${productResponse.status}).`,
+      });
     }
     const productBuffer = Buffer.from(await productResponse.arrayBuffer());
     const productMimeType = productResponse.headers.get('content-type') || 'image/jpeg';
     const productBase64 = productBuffer.toString('base64');
 
-    console.log(`VTO Analyze: Starting analysis with Gemini 2.0 Flash...`);
+    console.log(`VTO Analyze: starting Gemini 2.0 Flash...`);
 
-    const analysisResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.0-flash-001",
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: `You are an AI fashion stylist. Analyze these two images: 
-                1. A photo of a person.
-                2. A product photo of a "${productName}".
-                
-                Task: Create a highly detailed image generation prompt (in English) to show this person wearing the product. 
-                Focus on fit, posture, and lighting. Output ONLY the prompt string.`,
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:${userMimeType};base64,${userBase64}`,
-                },
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:${productMimeType};base64,${productBase64}`,
-                },
-              },
-            ],
-          },
-        ],
-      }),
-      signal: AbortSignal.timeout(25000)
-    });
+    const aiController = new AbortController();
+    const aiTimer = setTimeout(() => aiController.abort(), ANALYZE_AI_TIMEOUT_MS);
 
-    if (!analysisResponse.ok) {
-      const errorText = await analysisResponse.text();
-      console.error("Analysis API Error:", analysisResponse.status, errorText);
-      throw new Error(`Errore durante l'analisi visiva (${analysisResponse.status}). Per favore riduci le dimensioni della foto o riprova.`);
-    }
-
-    const analyzeData = await analysisResponse.json();
-    
-    if (analyzeData.error) {
-        console.error("OpenRouter Analyze Internal Error:", analyzeData.error);
-        throw new Error(`Errore interno AI: ${analyzeData.error.message || "Risorsa non disponibile"}`);
-    }
-
-    const imagenPrompt = analyzeData.choices?.[0]?.message?.content?.trim() || "";
-
-    if (!imagenPrompt || imagenPrompt.length < 5) {
-      throw new Error("L'intelligenza artificiale non ha generato un prompt valido. Prova con una foto diversa.");
-    }
-
-    res.json({ success: true, imagenPrompt });
-
-  } catch (error: any) {
-    console.error("VTO Analyze Error:", error);
-    res.status(500).json({ error: error.message || "Errore durante l'analisi delle foto." });
-  }
-});
-
-/**
- * STEP 2: Generate the final image using the prompt from Step 1
- * Uses a robust fallback system to try multiple fast models if one fails.
- */
-router.post('/vto/generate', async (req, res) => {
-  try {
-    const { imagenPrompt } = req.body;
-
-    if (!imagenPrompt) {
-      return res.status(400).json({ error: "Prompt immagine richiesto." });
-    }
-
-    // L'errore Sandbox.Timedout (30.00s) obbliga ad usare SOLO i modelli più veloci in assoluto
-    // I modelli Pro o di altissima qualità sforano spesso i 30 secondi e vengono uccisi da Netlify.
-    // Passiamo un array "models" in modo che sia OpenRouter (server-side) a fare il fallback
-    // se il primo modello fallisce o è sovraccarico. Così risparmiamo secondi preziosi!
-    const modelsList = [
-      "black-forest-labs/flux-schnell", 
-      "black-forest-labs/flux-dev",
-      "google/gemini-2.0-flash-001" // High-speed fallback
-    ];
-
-      const modelToUse = modelsList[0];
-      console.log(`Attempting image generation via OpenRouter: ${modelToUse}`);
-      
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    let analysisResponse: Response;
+    try {
+      analysisResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
@@ -178,77 +103,159 @@ router.post('/vto/generate', async (req, res) => {
           "X-Title": "The Blondes CRM",
         },
         body: JSON.stringify({
-          model: modelToUse, 
+          model: "google/gemini-2.0-flash-001",
           messages: [
-            { 
-              role: "user", 
+            {
+              role: "user",
               content: [
-                { type: "text", text: imagenPrompt }
-              ] 
-            }
+                {
+                  type: "text",
+                  text: `You are an AI fashion stylist. Analyze these two images:
+1. A photo of a person.
+2. A product photo of a "${productName}"${productCategory ? ` (${productCategory})` : ''}.
+
+Task: Create a highly detailed image generation prompt (in English) to show this person wearing the product. Focus on fit, posture, lighting, fabric drape. Output ONLY the prompt string.`,
+                },
+                { type: "image_url", image_url: { url: `data:${userMimeType};base64,${userImageBase64}` } },
+                { type: "image_url", image_url: { url: `data:${productMimeType};base64,${productBase64}` } },
+              ],
+            },
           ],
-          modalities: ["image"]
         }),
-        signal: AbortSignal.timeout(28000)
+        signal: aiController.signal,
       });
+    } finally {
+      clearTimeout(aiTimer);
+    }
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.warn(`API call failed:`, errorData);
-        throw new Error(`Generazione fallita sul provider. Errore: ${errorData.error?.message || response.statusText}`);
-      }
+    if (!analysisResponse.ok) {
+      const errorText = await analysisResponse.text().catch(() => '');
+      console.error("Analysis API Error:", analysisResponse.status, errorText);
+      return res.status(502).json({
+        error: `Errore durante l'analisi visiva (${analysisResponse.status}). Riprova con una foto più piccola.`,
+      });
+    }
 
-      const data = await response.json();
-      
-      // Handle OpenRouter internal errors that come with 200 status
-      if (data.error) {
-        console.error("OpenRouter Internal Error:", JSON.stringify(data.error));
-        throw new Error(`Il fornitore AI ha restituito un errore: ${data.error.message || "Errore sconosciuto"}. Riprova tra un istante.`);
-      }
+    const analyzeData = await analysisResponse.json();
+    if (analyzeData.error) {
+      console.error("OpenRouter Analyze Error:", analyzeData.error);
+      return res.status(502).json({
+        error: `Errore AI: ${analyzeData.error.message || "Risorsa non disponibile"}`,
+      });
+    }
 
-      // Try different common paths for the image URL in the response
-      const imageData = data.choices?.[0]?.message?.images?.[0] || 
-                        data.choices?.[0]?.message?.content || 
-                        data.choices?.[0]?.message?.content?.[0]?.image_url?.url;
-      
-      let finalImageUrl = typeof imageData === 'string' ? imageData : imageData?.url;
+    const imagenPrompt = analyzeData.choices?.[0]?.message?.content?.trim() || "";
+    if (!imagenPrompt || imagenPrompt.length < 5) {
+      return res.status(502).json({
+        error: "L'AI non ha generato un prompt valido. Prova con una foto diversa.",
+      });
+    }
 
-      if (!finalImageUrl || finalImageUrl.length < 10) {
-          console.error("OpenRouter Empty Response Data:", JSON.stringify(data, null, 2));
-          throw new Error(`OpenRouter ha risposto senza un URL immagine valido.`);
-      }
+    return res.json({ success: true, imagenPrompt });
+  } catch (error: any) {
+    const aborted = error?.name === 'AbortError';
+    console.error("VTO Analyze Error:", error?.message || error);
+    return res.status(aborted ? 504 : 500).json({
+      error: aborted
+        ? "L'analisi ha impiegato troppo tempo. Riprova con una foto più piccola."
+        : (error?.message || "Errore durante l'analisi delle foto."),
+    });
+  }
+});
 
-      // Normalize and extract valid image URL or Base64 format
-      if (!finalImageUrl.startsWith('http') && !finalImageUrl.startsWith('data:')) {
-        const urlMatch = finalImageUrl.match(/(https?:\/\/[^\s\)]+)/);
-        if (urlMatch && urlMatch[1]) {
-          finalImageUrl = urlMatch[1];
-        } else if (finalImageUrl.length > 500) {
-          finalImageUrl = `data:image/jpeg;base64,${finalImageUrl}`;
-        } else {
-           throw new Error(`Risposta AI incomprensibile.`);
-        }
-      }
+/**
+ * STEP 2: Generate the final image using the prompt from Step 1.
+ */
+router.post('/vto/generate', async (req, res) => {
+  const { imagenPrompt } = (req.body ?? {}) as { imagenPrompt?: string };
 
-      const modelUsedDataResult = data.model || modelToUse;
-      console.log(`Successfully generated image. Final model: ${modelUsedDataResult}`);
-      
-      res.json({ success: true, imageUrl: finalImageUrl, modelUsed: modelUsedDataResult });
+  if (!imagenPrompt) {
+    return res.status(400).json({ error: "Prompt immagine richiesto." });
+  }
 
-    } catch (error: any) {
-      console.error("VTO Generate System Error:", error.message);
-      
-      const isTimeout = error.name === 'TimeoutError' || error.message.includes('timeout') || error.message.includes('aborted');
-      
-      if (!res.headersSent) {
-        res.status(500).json({ 
-          error: isTimeout 
-            ? "Il modello sta impiegando troppo tempo (limite 30s). Riprova tra poco." 
-            : (error.message || "Errore critico durante la generazione.") 
-        });
+  const modelToUse = "black-forest-labs/flux-schnell";
+  const aiController = new AbortController();
+  const aiTimer = setTimeout(() => aiController.abort(), GENERATE_AI_TIMEOUT_MS);
+
+  try {
+    console.log(`VTO Generate: model=${modelToUse}`);
+
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://theblondes.it",
+        "X-Title": "The Blondes CRM",
+      },
+      body: JSON.stringify({
+        model: modelToUse,
+        messages: [
+          { role: "user", content: [{ type: "text", text: imagenPrompt }] },
+        ],
+        modalities: ["image"],
+      }),
+      signal: aiController.signal,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({} as any));
+      console.warn("Generate API error:", response.status, errorData);
+      return res.status(502).json({
+        error: `Generazione fallita. ${errorData.error?.message || response.statusText}`,
+      });
+    }
+
+    const data = await response.json();
+    if (data.error) {
+      console.error("OpenRouter Generate Error:", data.error);
+      return res.status(502).json({
+        error: `Il fornitore AI ha restituito un errore: ${data.error.message || "Errore sconosciuto"}.`,
+      });
+    }
+
+    // Estrai URL immagine dai vari formati possibili
+    const imageData =
+      data.choices?.[0]?.message?.images?.[0] ||
+      data.choices?.[0]?.message?.content ||
+      data.choices?.[0]?.message?.content?.[0]?.image_url?.url;
+
+    let finalImageUrl: string | undefined =
+      typeof imageData === 'string' ? imageData : imageData?.url;
+
+    if (!finalImageUrl || finalImageUrl.length < 10) {
+      console.error("OpenRouter empty response:", JSON.stringify(data, null, 2));
+      return res.status(502).json({ error: "OpenRouter ha risposto senza URL immagine." });
+    }
+
+    if (!finalImageUrl.startsWith('http') && !finalImageUrl.startsWith('data:')) {
+      const urlMatch = finalImageUrl.match(/(https?:\/\/[^\s)]+)/);
+      if (urlMatch) {
+        finalImageUrl = urlMatch[1];
+      } else if (finalImageUrl.length > 500) {
+        finalImageUrl = `data:image/jpeg;base64,${finalImageUrl}`;
+      } else {
+        return res.status(502).json({ error: "Risposta AI incomprensibile." });
       }
     }
-  });
+
+    const modelUsed = data.model || modelToUse;
+    console.log(`VTO Generate: success, model=${modelUsed}`);
+    return res.json({ success: true, imageUrl: finalImageUrl, modelUsed });
+  } catch (error: any) {
+    const aborted = error?.name === 'AbortError';
+    console.error("VTO Generate Error:", error?.message || error);
+    if (!res.headersSent) {
+      return res.status(aborted ? 504 : 500).json({
+        error: aborted
+          ? "Il modello sta impiegando troppo tempo (limite 10s Netlify). Riprova."
+          : (error?.message || "Errore critico durante la generazione."),
+      });
+    }
+  } finally {
+    clearTimeout(aiTimer);
+  }
+});
 
 app.use("/api", router);
 app.use("/.netlify/functions/api", router);

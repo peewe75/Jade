@@ -20,6 +20,50 @@ interface ProductData {
   shippingAndReturns?: string;
 }
 
+/**
+ * Ridimensiona e comprime un'immagine via Canvas.
+ * Necessario perché Netlify Functions hanno un limite ~6MB sul body della request
+ * e una foto da fotocamera moderna (4-10MB) + overhead base64 sfora facilmente.
+ * Target: lato lungo max 1024px, JPEG q=0.85 → tipicamente 200-500KB.
+ */
+async function resizeAndEncodeImage(
+  file: File,
+  maxDimension = 1024,
+  quality = 0.85
+): Promise<{ base64: string; mimeType: string }> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error('Impossibile leggere il file.'));
+    reader.readAsDataURL(file);
+  });
+
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('Immagine non valida.'));
+    image.src = dataUrl;
+  });
+
+  const { width, height } = img;
+  const scale = Math.min(1, maxDimension / Math.max(width, height));
+  const targetW = Math.round(width * scale);
+  const targetH = Math.round(height * scale);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = targetW;
+  canvas.height = targetH;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas non supportato.');
+  ctx.drawImage(img, 0, 0, targetW, targetH);
+
+  // Output JPEG per dimensioni minime
+  const mimeType = 'image/jpeg';
+  const outDataUrl = canvas.toDataURL(mimeType, quality);
+  const base64 = outDataUrl.split(',')[1] || '';
+  return { base64, mimeType };
+}
+
 export default function Product() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
@@ -85,17 +129,19 @@ export default function Product() {
     setVtoPhase('analyzing');
 
     try {
-      // Step 1: Analyze images to get a prompt
-      const formData = new FormData();
-      // Important: Add text fields BEFORE the file for some body parsers
-      formData.append('productImageUrl', displayProduct.images?.[0] || displayProduct.image || '');
-      formData.append('productName', displayProduct.name);
-      formData.append('productCategory', displayProduct.category || 'Clothing');
-      formData.append('userImage', vtoFile);
+      // Step 1: resize + compress lato client (Netlify ha limite ~6MB per function body)
+      const { base64, mimeType } = await resizeAndEncodeImage(vtoFile, 1024, 0.85);
 
       const analyzeResponse = await fetch('/api/vto/analyze', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userImageBase64: base64,
+          userMimeType: mimeType,
+          productImageUrl: displayProduct.images?.[0] || '',
+          productName: displayProduct.name,
+          productCategory: displayProduct.category || 'Clothing',
+        }),
       });
 
       if (!analyzeResponse.ok) {
@@ -127,9 +173,13 @@ export default function Product() {
       });
 
       if (!generateResponse.ok) {
-        const text = await generateResponse.text();
-        console.error("Generation Error:", generateResponse.status, text);
-        alert(`Errore generazione (${generateResponse.status}). Riprova.`);
+        let errorMsg = `Errore generazione (${generateResponse.status})`;
+        try {
+          const errorData = await generateResponse.json();
+          errorMsg = errorData.error || errorMsg;
+        } catch {}
+        console.error("Generation Error:", errorMsg);
+        alert(errorMsg);
         return;
       }
 
