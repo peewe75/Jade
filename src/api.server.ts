@@ -191,7 +191,7 @@ router.post('/vto/generate', async (req, res) => {
     return res.status(400).json({ error: "Prompt immagine richiesto." });
   }
 
-  const modelToUse = "black-forest-labs/flux-schnell";
+  const modelToUse = "black-forest-labs/flux.2-klein-4b";
   const aiController = new AbortController();
   const aiTimer = setTimeout(() => aiController.abort(), GENERATE_AI_TIMEOUT_MS);
 
