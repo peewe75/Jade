@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronDown, ChevronUp, Star, Camera, X, RefreshCw } from 'lucide-react';
+import { ChevronDown, ChevronUp, Star, Camera, X, RefreshCw, Heart } from 'lucide-react';
+import { useFavorites } from '../contexts/FavoritesContext';
 import { useParams, Link } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -22,6 +23,7 @@ interface ProductData {
 export default function Product() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const { toggleFavorite, isFavorite } = useFavorites();
   const [product, setProduct] = useState<ProductData | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
@@ -308,6 +310,29 @@ export default function Product() {
               <Camera className="w-4 h-4" />
               <span>Camerino Virtuale (AI)</span>
             </button>
+
+            {user && (
+              <button 
+                onClick={() => {
+                  if (displayProduct) {
+                    toggleFavorite({
+                      id: displayProduct.id,
+                      name: displayProduct.name,
+                      price: displayProduct.price,
+                      images: displayProduct.images
+                    });
+                  }
+                }}
+                className={`w-full py-4 uppercase tracking-widest text-sm font-medium transition-all flex items-center justify-center space-x-2 border border-gray-100 ${
+                  isFavorite(displayProduct.id) 
+                    ? 'bg-red-50 text-red-500 border-red-100' 
+                    : 'bg-white text-gray-400 hover:text-red-500 hover:border-red-100'
+                }`}
+              >
+                <Heart className={`w-4 h-4 ${isFavorite(displayProduct.id) ? 'fill-red-500' : ''}`} />
+                <span>{isFavorite(displayProduct.id) ? 'Rimuovi dai Preferiti' : 'Aggiungi ai Preferiti'}</span>
+              </button>
+            )}
           </div>
 
           {/* Accordions */}

@@ -3,6 +3,9 @@ import { collection, onSnapshot, query, orderBy, getDocs } from 'firebase/firest
 import { db } from '../firebase';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
+import { Heart } from 'lucide-react';
+import { useFavorites } from '../contexts/FavoritesContext';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Product {
   id: string;
@@ -18,6 +21,8 @@ export default function Shop() {
   const [categories, setCategories] = useState<string[]>(['All']);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('All');
+  const { toggleFavorite, isFavorite } = useFavorites();
+  const { user } = useAuth();
 
   useEffect(() => {
     // Fetch dynamic categories
@@ -121,6 +126,26 @@ export default function Shop() {
                         <div className="absolute top-4 left-4 bg-white px-3 py-1 text-[10px] uppercase tracking-widest font-medium">
                           {product.tags[0]}
                         </div>
+                      )}
+
+                      {user && (
+                        <button 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            toggleFavorite({
+                              id: product.id,
+                              name: product.name,
+                              price: product.price,
+                              images: product.images
+                            });
+                          }}
+                          className="absolute top-4 right-4 p-2 rounded-full bg-white/80 backdrop-blur-sm shadow-sm opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-white hover:scale-110"
+                        >
+                          <Heart 
+                            className={`w-4 h-4 transition-colors ${isFavorite(product.id) ? 'text-red-500 fill-red-500' : 'text-gray-400'}`} 
+                          />
+                        </button>
                       )}
                       
                       <div className="absolute bottom-0 left-0 right-0 p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out">
