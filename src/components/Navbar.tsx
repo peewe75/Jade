@@ -42,6 +42,7 @@ export default function Navbar() {
     : `fixed top-0 left-0 right-0 z-50 transition-all duration-500 glass shadow-md py-1`;
 
   return (
+    <>
     <motion.nav
       initial={{ y: -100 }}
       animate={{ y: 0 }}
@@ -132,10 +133,10 @@ export default function Navbar() {
               </Link>
             )}
           </div>
-        </div>
       </div>
+    </motion.nav>
 
-      {/* Mobile Menu Overlay */}
+    {/* Mobile Menu Overlay */}
       <AnimatePresence>
         {isMobileMenuOpen && (
           <>
@@ -253,7 +254,8 @@ export default function Navbar() {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed top-0 right-0 bottom-0 w-[95%] max-w-xl bg-white z-[70] shadow-2xl flex flex-col text-brand-black"
+              style={{ width: '600px', maxWidth: '95vw' }}
+              className="fixed top-0 right-0 bottom-0 bg-white z-[70] shadow-2xl flex flex-col text-brand-black"
             >
               <div className="p-8 flex justify-between items-center border-b border-gray-100">
                 <div className="flex items-center space-x-2">
@@ -337,7 +339,7 @@ export default function Navbar() {
           </>
         )}
       </AnimatePresence>
-    </motion.nav>
+    </>
   );
 }
 
