@@ -112,9 +112,9 @@ router.post('/vto/generate', async (req, res) => {
       return res.status(400).json({ error: "Prompt immagine richiesto." });
     }
 
-    // Generate the final image using OpenRouter's multimodal chat endpoint (GPT-5 Image or alternative)
+    // Generate the final image using a faster model (Flux Schnell)
     const generateResponse = await openai.chat.completions.create({
-      model: "openai/gpt-5-image", 
+      model: "black-forest-labs/flux-schnell", 
       messages: [
         {
           role: "user",
