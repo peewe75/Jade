@@ -13,7 +13,9 @@ import SocialBar from './components/SocialBar';
 import Home from './pages/Home';
 import Product from './pages/Product';
 import About from './pages/About';
+import CustomerCarePage from './pages/CustomerCarePage';
 import Login from './pages/Login';
+import MyTryOns from './pages/MyTryOns';
 import Shop from './pages/Shop';
 import Admin from './pages/Admin';
 import CRM from './pages/CRM';
@@ -33,6 +35,14 @@ export default function App() {
               <Route path="/shop" element={<Shop />} />
               <Route path="/product/:id" element={<Product />} />
               <Route path="/about" element={<About />} />
+              <Route path="/contact" element={<CustomerCarePage variant="contact" />} />
+              <Route path="/shipping-returns" element={<CustomerCarePage variant="shipping" />} />
+              <Route path="/size-guide" element={<CustomerCarePage variant="size-guide" />} />
+              <Route path="/privacy-policy" element={<CustomerCarePage variant="privacy" />} />
+              <Route path="/terms" element={<CustomerCarePage variant="terms" />} />
+              <Route path="/cookies" element={<CustomerCarePage variant="cookies" />} />
+              <Route path="/accessibility" element={<CustomerCarePage variant="accessibility" />} />
+              <Route path="/my-try-ons" element={<MyTryOns />} />
               <Route path="/login" element={<Login />} />
               <Route path="/admin" element={<Admin />} />
               <Route path="/admin/crm" element={<CRM />} />
@@ -45,6 +55,3 @@ export default function App() {
     </AuthProvider>
   );
 }
-
-
-

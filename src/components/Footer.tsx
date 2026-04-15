@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { Link } from 'react-router-dom';
 import { db } from '../firebase';
-import { Instagram, Facebook, Twitter, Pin, Send } from 'lucide-react';
+import { Instagram, Facebook, Pin, Send } from 'lucide-react';
 
 export default function Footer() {
   const [email, setEmail] = useState('');
@@ -97,10 +98,10 @@ export default function Footer() {
           <div>
             <h4 className="text-[10px] uppercase tracking-[0.3em] font-bold text-gray-500 mb-8">Customer Care</h4>
             <ul className="space-y-4 text-sm text-gray-400">
-              <li><a href="#" className="hover:text-white transition-colors">Contact Us</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Shipping & Returns</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Size Guide</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Privacy Policy</a></li>
+              <li><Link to="/contact" className="hover:text-white transition-colors">Contact Us</Link></li>
+              <li><Link to="/shipping-returns" className="hover:text-white transition-colors">Shipping & Returns</Link></li>
+              <li><Link to="/size-guide" className="hover:text-white transition-colors">Size Guide</Link></li>
+              <li><Link to="/privacy-policy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
             </ul>
           </div>
 
@@ -141,12 +142,13 @@ export default function Footer() {
         <div className="border-t border-gray-900 pt-10 flex flex-col md:flex-row justify-between items-center text-[10px] text-gray-600 uppercase tracking-widest">
           <p>&copy; {new Date().getFullYear()} The Blondes Brand. Handcrafted Excellence.</p>
           <div className="flex space-x-8 mt-6 md:mt-0">
-            <span className="hover:text-white transition-colors cursor-pointer">Terms</span>
-            <span className="hover:text-white transition-colors cursor-pointer">Cookies</span>
-            <span className="hover:text-white transition-colors cursor-pointer">Accessibility</span>
+            <Link to="/terms" className="hover:text-white transition-colors">Terms</Link>
+            <Link to="/cookies" className="hover:text-white transition-colors">Cookies</Link>
+            <Link to="/accessibility" className="hover:text-white transition-colors">Accessibility</Link>
           </div>
         </div>
       </div>
     </footer>
   );
 }
+

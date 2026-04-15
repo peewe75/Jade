@@ -1,4 +1,4 @@
-import { ShoppingBag, Menu, X, Search, User, Heart, LayoutGrid, RefreshCw } from 'lucide-react';
+import { ShoppingBag, Menu, X, Search, User, Heart, LayoutGrid, RefreshCw, Camera } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link, useLocation } from 'react-router-dom';
@@ -110,6 +110,13 @@ export default function Navbar() {
                     <p className="text-xs text-gray-500 truncate">{user.email}</p>
                   </div>
                   <Link 
+                    to="/my-try-ons"
+                    onClick={() => setIsAccountMenuOpen(false)}
+                    className="block w-full text-left px-4 py-3 text-sm uppercase tracking-widest font-medium hover:bg-gray-50 text-brand-black transition-colors border-b border-gray-100"
+                  >
+                    My Try-Ons
+                  </Link>
+                  <Link 
                     to="/admin"
                     onClick={() => setIsAccountMenuOpen(false)}
                     className="block w-full text-left px-4 py-3 text-sm uppercase tracking-widest font-medium hover:bg-gray-50 text-brand-black transition-colors border-b border-gray-100"
@@ -193,6 +200,14 @@ export default function Navbar() {
                 <div className="pt-8 border-t border-gray-100 space-y-4">
                   {user ? (
                     <>
+                      <Link 
+                        to="/my-try-ons" 
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="flex items-center space-x-3 text-lg"
+                      >
+                        <Camera className="w-5 h-5" />
+                        <span>My Try-Ons</span>
+                      </Link>
                       <Link 
                         to="/admin" 
                         onClick={() => setIsMobileMenuOpen(false)}
@@ -343,6 +358,4 @@ export default function Navbar() {
     </>
   );
 }
-
-
 

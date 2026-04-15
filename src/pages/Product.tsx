@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, ChevronUp, Star, Camera, X, RefreshCw, Heart } from 'lucide-react';
 import { useFavorites } from '../contexts/FavoritesContext';
 import { useParams, Link } from 'react-router-dom';
-import { doc, getDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, onSnapshot, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
@@ -19,6 +19,16 @@ interface ProductData {
   sizes?: string[];
   detailsAndCare?: string;
   shippingAndReturns?: string;
+}
+
+interface VtoGalleryItem {
+  id: string;
+  productId?: string;
+  productName?: string;
+  status?: string;
+  imageUrl?: string;
+  createdAt?: { toMillis?: () => number } | null;
+  completedAt?: { toMillis?: () => number } | null;
 }
 
 /**
@@ -83,6 +93,8 @@ export default function Product() {
   const [vtoResultImage, setVtoResultImage] = useState<string | null>(null);
   const [vtoPreviewImage, setVtoPreviewImage] = useState<string | null>(null);
   const [vtoPhase, setVtoPhase] = useState<'idle' | 'analyzing' | 'generating'>('idle');
+  const [myTryOns, setMyTryOns] = useState<VtoGalleryItem[]>([]);
+  const [isMyTryOnsLoading, setIsMyTryOnsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -120,6 +132,47 @@ export default function Product() {
   const toggleAccordion = (id: string) => {
     setOpenAccordion(openAccordion === id ? null : id);
   };
+
+  useEffect(() => {
+    if (!user) {
+      setMyTryOns([]);
+      setIsMyTryOnsLoading(false);
+      return;
+    }
+
+    setIsMyTryOnsLoading(true);
+    const jobsQuery = query(
+      collection(db, 'vto_jobs'),
+      where('userId', '==', user.uid)
+    );
+
+    const unsubscribe = onSnapshot(
+      jobsQuery,
+      (snapshot) => {
+        const nextItems = snapshot.docs
+          .map((jobDoc) => ({
+            id: jobDoc.id,
+            ...jobDoc.data(),
+          }) as VtoGalleryItem)
+          .filter((item) => item.status === 'completed' && typeof item.imageUrl === 'string' && item.imageUrl.length > 0)
+          .sort((a, b) => {
+            const aTime = a.completedAt?.toMillis?.() ?? a.createdAt?.toMillis?.() ?? 0;
+            const bTime = b.completedAt?.toMillis?.() ?? b.createdAt?.toMillis?.() ?? 0;
+            return bTime - aTime;
+          });
+
+        setMyTryOns(nextItems);
+        setIsMyTryOnsLoading(false);
+      },
+      (error) => {
+        console.error('My try-on gallery error:', error);
+        setMyTryOns([]);
+        setIsMyTryOnsLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user]);
 
   // Cleanup della sottoscrizione Firestore al risultato VTO (un solo listener alla volta).
   const vtoUnsubRef = useRef<(() => void) | null>(null);
@@ -270,6 +323,8 @@ export default function Product() {
     .map((item) => item.trim())
     .filter(Boolean);
   const shippingAndReturnsText = displayProduct.shippingAndReturns || '';
+  const myTryOnsForProduct = myTryOns.filter((item) => item.productId === displayProduct.id);
+  const featuredTryOns = myTryOnsForProduct.length > 0 ? myTryOnsForProduct : myTryOns;
 
   return (
     <main className="flex-grow pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
@@ -415,6 +470,103 @@ export default function Product() {
               </button>
             )}
           </div>
+
+          {user && (
+            <section className="mb-10 border-t border-gray-200 pt-8">
+                <div className="mb-5 flex items-end justify-between gap-4">
+                  <div>
+                    <p className="mb-2 text-[10px] uppercase tracking-[0.3em] text-gray-500">Virtual Dressing Room</p>
+                    <h2 className="text-2xl font-serif">I miei try-on</h2>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    {featuredTryOns.length > 0 && (
+                      <span className="text-[10px] uppercase tracking-[0.25em] text-gray-500">
+                        {myTryOnsForProduct.length > 0 ? 'Su questo prodotto' : 'Ultimi salvati'}
+                      </span>
+                    )}
+                    <Link
+                      to="/my-try-ons"
+                      className="text-[10px] uppercase tracking-[0.24em] text-gray-500 transition-colors hover:text-brand-black"
+                    >
+                      Vedi tutto
+                    </Link>
+                  </div>
+              </div>
+
+              {isMyTryOnsLoading ? (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {Array.from({ length: 3 }).map((_, index) => (
+                    <div key={index} className="animate-pulse space-y-2">
+                      <div className="aspect-[3/4] bg-gray-100" />
+                      <div className="h-3 w-3/4 bg-gray-100" />
+                      <div className="h-2 w-1/2 bg-gray-100" />
+                    </div>
+                  ))}
+                </div>
+              ) : featuredTryOns.length > 0 ? (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {featuredTryOns.slice(0, 6).map((item) => {
+                    const isCurrentProduct = item.productId === displayProduct.id;
+                    return (
+                      <article key={item.id} className="group">
+                        <button
+                          type="button"
+                          onClick={() => setLightboxImage(item.imageUrl || null)}
+                          className="relative block aspect-[3/4] w-full overflow-hidden bg-gray-100"
+                        >
+                          <img
+                            src={item.imageUrl}
+                            alt={item.productName || 'Try-on AI'}
+                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                            referrerPolicy="no-referrer"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent opacity-90" />
+                          <div className="absolute inset-x-0 bottom-0 p-3 text-left text-white">
+                            <p className="text-[10px] uppercase tracking-[0.25em] text-white/70">
+                              {isCurrentProduct ? 'Questo look' : 'Archivio'}
+                            </p>
+                            <p className="mt-1 text-xs uppercase tracking-[0.18em]">
+                              {item.productName || 'Virtual try-on'}
+                            </p>
+                          </div>
+                        </button>
+                        <div className="mt-2 flex items-center justify-between gap-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setVtoResultImage(item.imageUrl || null);
+                              setVtoPreviewImage(null);
+                              setVtoFile(null);
+                              setVtoConsent(true);
+                              setIsVtoModalOpen(true);
+                            }}
+                            className="text-[10px] uppercase tracking-[0.22em] text-gray-500 transition-colors hover:text-brand-black"
+                          >
+                            Apri
+                          </button>
+                          {!isCurrentProduct && item.productId && (
+                            <Link
+                              to={`/product/${item.productId}`}
+                              className="text-[10px] uppercase tracking-[0.22em] text-gray-500 transition-colors hover:text-brand-black"
+                            >
+                              Vai al capo
+                            </Link>
+                          )}
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="border border-gray-200 bg-gray-50 px-5 py-6">
+                  <p className="text-[10px] uppercase tracking-[0.28em] text-gray-500">Empty gallery</p>
+                  <p className="mt-3 text-sm leading-relaxed text-gray-600">
+                    Nessun try-on salvato ancora. Genera la tua prima prova virtuale e comparir&agrave; qui.
+                  </p>
+                </div>
+              )}
+            </section>
+          )}
 
           {/* Accordions */}
           <div className="border-t border-gray-200">
