@@ -91,20 +91,40 @@ exports.vtoTryon = (0, https_1.onCall)({
         throw new https_1.HttpsError('permission-denied', 'Job non valido o non autorizzato.');
     }
     const userMime = userMimeType || 'image/jpeg';
-    const categoryHint = productCategory ? ` (${productCategory})` : '';
-    const prompt = `You are a virtual try-on engine. You are given two images:\n` +
-        `1. A photo of a person (the customer).\n` +
-        `2. A photo of a clothing product called "${productName}"${categoryHint}.\n\n` +
-        `Task: produce a single photorealistic image showing the SAME person from image 1 ` +
-        `wearing the EXACT garment from image 2.\n\n` +
-        `STRICT REQUIREMENTS:\n` +
-        `- Preserve the person's face, hair, skin tone, body proportions, and pose from ` +
-        `image 1 EXACTLY. Do not change their identity.\n` +
-        `- Preserve the garment's exact color, pattern, fabric texture, cut, length, and ` +
-        `styling details from image 2. Do not substitute a similar-looking item.\n` +
-        `- Keep the original background, lighting, and camera angle of image 1.\n` +
-        `- Fit the garment naturally on the body, with realistic drape, shadows, and wrinkles.\n` +
-        `- Output a single high-quality photograph. No text, no watermarks, no extra people.`;
+    const categoryHint = productCategory ? ` (category: ${productCategory})` : '';
+    const systemIntro = `You are a photorealistic virtual try-on engine. Your job is to produce ONE ` +
+        `photograph of the person in IMAGE 1 wearing EXACTLY the garment shown in ` +
+        `IMAGE 2. Nothing else.`;
+    const customerLabel = `### IMAGE 1 — CUSTOMER PHOTO\n` +
+        `This is the real customer. Everything about this person must be preserved: ` +
+        `face, hair, skin tone, makeup, body shape, pose, hands position, background, ` +
+        `lighting, camera angle, framing. Treat their identity as sacred.`;
+    const productLabel = `### IMAGE 2 — PRODUCT TO TRY ON: "${productName}"${categoryHint}\n` +
+        `This is the ONLY garment the customer must be wearing in the output. ` +
+        `Reproduce it EXACTLY as shown: same color, same pattern/print, same fabric, ` +
+        `same cut, same length, same neckline, same sleeves, same collar, same ` +
+        `buttons/zippers, same straps, same belt. Do not invent variations. Do not ` +
+        `substitute with a similar-looking item.`;
+    const rulesLabel = `### OUTPUT RULES (STRICT)\n` +
+        `1. REPLACE any clothing currently visible on the person in IMAGE 1 with the ` +
+        `   garment from IMAGE 2. If the customer is already wearing clothes, those ` +
+        `   clothes must disappear and be substituted by the product. Never layer the ` +
+        `   product on top of existing clothes. Never mix pieces from IMAGE 1 outfit ` +
+        `   with the product.\n` +
+        `2. DO NOT add any garment or accessory that is not present in IMAGE 2 ` +
+        `   (no extra jackets, trenches, coats, scarves, belts, bags, or shoes unless ` +
+        `   they come from IMAGE 2).\n` +
+        `3. KEEP the person's face, hair, skin tone, body proportions, and pose from ` +
+        `   IMAGE 1 unchanged. Do not restyle the hair. Do not change the face. Do not ` +
+        `   swap the identity.\n` +
+        `4. KEEP the background, lighting, shadows direction, and camera angle from ` +
+        `   IMAGE 1. The person must appear in the exact same scene.\n` +
+        `5. Fit the garment naturally on the body with realistic drape, folds, and ` +
+        `   shadows that match the lighting of IMAGE 1.\n` +
+        `6. Output a single high-resolution photograph. No text, no logos, no ` +
+        `   watermarks, no collage, no split screen, no multiple people.`;
+    const prompt = `${systemIntro}\n\n${customerLabel}`;
+    const productPrompt = `${productLabel}\n\n${rulesLabel}`;
     try {
         const product = await resolveProductImage(productImageUrl);
         const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -129,11 +149,18 @@ exports.vtoTryon = (0, https_1.onCall)({
                                     url: `data:${userMime};base64,${userImageBase64}`,
                                 },
                             },
+                            { type: 'text', text: productPrompt },
                             {
                                 type: 'image_url',
                                 image_url: {
                                     url: `data:${product.mimeType};base64,${product.base64}`,
                                 },
+                            },
+                            {
+                                type: 'text',
+                                text: `Now produce the single photorealistic try-on image: the ` +
+                                    `person from IMAGE 1, in the same pose and scene, wearing ` +
+                                    `ONLY the garment from IMAGE 2.`,
                             },
                         ],
                     },
