@@ -4,8 +4,8 @@ import { ChevronDown, ChevronUp, Star, Camera, X, RefreshCw, Heart } from 'lucid
 import { useFavorites } from '../contexts/FavoritesContext';
 import { useParams, Link } from 'react-router-dom';
 import { doc, getDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase';
-import firebaseConfig from '../../firebase-applet-config.json';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import Tilt from 'react-parallax-tilt';
 
@@ -156,9 +156,7 @@ export default function Product() {
           ? crypto.randomUUID()
           : `job-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-      const idToken = await user.getIdToken();
-
-      // 3. Crea il doc pending in Firestore (il client è il primo writer)
+      // 3. Crea il doc pending in Firestore — la Cloud Function lo aggiornerà
       const jobRef = doc(db, 'vto_jobs', jobId);
       await setDoc(jobRef, {
         userId: user.uid,
@@ -168,7 +166,7 @@ export default function Product() {
         createdAt: serverTimestamp(),
       });
 
-      // 4. Sottoscrivi il doc per ricevere il risultato quando il background finisce
+      // 4. Sottoscrivi il doc — ricevi il risultato appena la function finisce
       const unsub = onSnapshot(
         jobRef,
         (snap) => {
@@ -197,35 +195,30 @@ export default function Product() {
       );
       vtoUnsubRef.current = unsub;
 
-      // 5. Triggera la background function. Netlify risponde 202 immediatamente.
-      const response = await fetch('/api/vto/tryon', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jobId,
-          userId: user.uid,
-          firebaseIdToken: idToken,
-          firebaseProjectId: firebaseConfig.projectId,
-          userImageBase64: base64,
-          userMimeType: mimeType,
-          productImageUrl: displayProduct.images?.[0] || '',
-          productName: displayProduct.name,
-          productCategory: displayProduct.category || 'Clothing',
-        }),
+      // 5. Chiama la Cloud Function Firebase (fire — non blocchiamo la UI in attesa).
+      //    La function scrive il risultato in Firestore; il listener onSnapshot lo riceve.
+      const vtoCall = httpsCallable(functions, 'vtoTryon');
+      vtoCall({
+        jobId,
+        userImageBase64: base64,
+        userMimeType: mimeType,
+        productImageUrl: displayProduct.images?.[0] || '',
+        productName: displayProduct.name,
+        productCategory: displayProduct.category || 'Clothing',
+      }).catch((err) => {
+        // Se la chiamata fallisce prima che Firestore si aggiorni, mostriamo l'errore
+        const msg = err?.message || 'Errore durante la generazione.';
+        console.error('vtoTryon callable error:', msg);
+        // Solo se lo snapshot non ha già gestito lo stato
+        if (vtoUnsubRef.current) {
+          alert(msg);
+          vtoUnsubRef.current?.();
+          vtoUnsubRef.current = null;
+          setIsVtoProcessing(false);
+          setVtoPhase('idle');
+        }
       });
-
-      // Una background function risponde 202; qualsiasi errore early significa
-      // che il job non è partito — dobbiamo annullare in UI.
-      if (response.status !== 202 && !response.ok) {
-        const text = await response.text().catch(() => '');
-        console.error('VTO start error:', response.status, text);
-        alert(`Impossibile avviare il camerino virtuale (${response.status}).`);
-        vtoUnsubRef.current?.();
-        vtoUnsubRef.current = null;
-        setIsVtoProcessing(false);
-        setVtoPhase('idle');
-      }
-      // In caso di successo (202), restiamo in attesa del listener onSnapshot.
+      // Restiamo in attesa del listener onSnapshot che guida la UI.
     } catch (error) {
       console.error("VTO Process Error:", error);
       alert("Errore di connessione al camerino.");
