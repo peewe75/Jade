@@ -2,6 +2,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 
 initializeApp();
 
@@ -242,6 +243,44 @@ export const vtoTryon = onCall<VTOInput, Promise<VTOOutput>>(
           });
           throw new HttpsError('internal', 'Unreadable AI response');
         }
+      }
+
+      // Se l'output è un data URL base64, lo carichiamo su Firebase Storage
+      // per evitare di sfondare il limite di 1 MiB per field di Firestore.
+      if (imageUrl.startsWith('data:')) {
+        const m = imageUrl.match(/^data:([^;,]+)?(?:;base64)?,(.*)$/);
+        if (!m || !m[2]) {
+          await jobRef.update({
+            status: 'failed',
+            error: 'Formato immagine AI non valido.',
+            completedAt: FieldValue.serverTimestamp(),
+          });
+          throw new HttpsError('internal', 'Invalid data URL from model');
+        }
+        const mimeType = m[1] || 'image/jpeg';
+        const ext = mimeType.includes('png')
+          ? 'png'
+          : mimeType.includes('webp')
+          ? 'webp'
+          : 'jpg';
+        const buffer = Buffer.from(m[2], 'base64');
+
+        const bucket = getStorage().bucket('jade-crm-2026-v2.firebasestorage.app');
+        const objectPath = `vto_results/${uid}/${jobId}.${ext}`;
+        const file = bucket.file(objectPath);
+        await file.save(buffer, {
+          contentType: mimeType,
+          resumable: false,
+          metadata: {
+            cacheControl: 'public, max-age=31536000, immutable',
+            metadata: { jobId, uid },
+          },
+        });
+        await file.makePublic();
+        imageUrl = `https://storage.googleapis.com/${bucket.name}/${objectPath}`;
+        console.log(
+          `VTO image uploaded to Storage: ${objectPath} (${buffer.length} bytes)`
+        );
       }
 
       const modelUsed = (data.model as string) || VTO_MODEL;

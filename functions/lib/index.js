@@ -5,6 +5,7 @@ const https_1 = require("firebase-functions/v2/https");
 const params_1 = require("firebase-functions/params");
 const app_1 = require("firebase-admin/app");
 const firestore_1 = require("firebase-admin/firestore");
+const storage_1 = require("firebase-admin/storage");
 (0, app_1.initializeApp)();
 const openrouterKey = (0, params_1.defineSecret)('OPENROUTER_API_KEY');
 const VTO_MODEL = 'google/gemini-2.5-flash-image';
@@ -188,6 +189,40 @@ exports.vtoTryon = (0, https_1.onCall)({
                 });
                 throw new https_1.HttpsError('internal', 'Unreadable AI response');
             }
+        }
+        // Se l'output è un data URL base64, lo carichiamo su Firebase Storage
+        // per evitare di sfondare il limite di 1 MiB per field di Firestore.
+        if (imageUrl.startsWith('data:')) {
+            const m = imageUrl.match(/^data:([^;,]+)?(?:;base64)?,(.*)$/);
+            if (!m || !m[2]) {
+                await jobRef.update({
+                    status: 'failed',
+                    error: 'Formato immagine AI non valido.',
+                    completedAt: firestore_1.FieldValue.serverTimestamp(),
+                });
+                throw new https_1.HttpsError('internal', 'Invalid data URL from model');
+            }
+            const mimeType = m[1] || 'image/jpeg';
+            const ext = mimeType.includes('png')
+                ? 'png'
+                : mimeType.includes('webp')
+                    ? 'webp'
+                    : 'jpg';
+            const buffer = Buffer.from(m[2], 'base64');
+            const bucket = (0, storage_1.getStorage)().bucket('jade-crm-2026-v2.firebasestorage.app');
+            const objectPath = `vto_results/${uid}/${jobId}.${ext}`;
+            const file = bucket.file(objectPath);
+            await file.save(buffer, {
+                contentType: mimeType,
+                resumable: false,
+                metadata: {
+                    cacheControl: 'public, max-age=31536000, immutable',
+                    metadata: { jobId, uid },
+                },
+            });
+            await file.makePublic();
+            imageUrl = `https://storage.googleapis.com/${bucket.name}/${objectPath}`;
+            console.log(`VTO image uploaded to Storage: ${objectPath} (${buffer.length} bytes)`);
         }
         const modelUsed = data.model || VTO_MODEL;
         console.log(`VTO success jobId=${jobId} model=${modelUsed}`);
