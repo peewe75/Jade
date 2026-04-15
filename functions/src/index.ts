@@ -133,49 +133,86 @@ export const vtoTryon = onCall<VTOInput, Promise<VTOOutput>>(
 
     const userMime = userMimeType || 'image/jpeg';
 
-    const categoryHint = productCategory ? ` (category: ${productCategory})` : '';
+    const categoryHint = productCategory ? ` (Category: ${productCategory})` : '';
 
-    const systemIntro =
-      `You are a photorealistic virtual try-on engine. Your job is to produce ONE ` +
-      `photograph of the person in IMAGE 1 wearing EXACTLY the garment shown in ` +
-      `IMAGE 2. Nothing else.`;
+    // Prompt before IMAGE 1 — identity + scene anchor
+    const prompt =
+      `### SYSTEM ROLE\n` +
+      `You are a high-end AI Virtual Try-On Engine. Your task is to generate ONE ` +
+      `photorealistic image of the person from IMAGE 1 wearing the specific ` +
+      `garment from IMAGE 2.\n\n` +
+      `### IMAGE 1 — IDENTITY AND SCENE ANCHOR\n` +
+      `This is the ONLY source for human identity, body structure, and ` +
+      `environment.\n` +
+      `- HARD IDENTITY LOCK: preserve face (eyes, nose, lips, jawline), skin tone, ` +
+      `hair texture and color, body proportions of the person in IMAGE 1. Any ` +
+      `deviation or morphing with features from IMAGE 2 is a critical failure.\n` +
+      `- POSE & SCENE: keep the exact pose, hand positioning, background, ` +
+      `camera angle, framing, and lighting of IMAGE 1 unchanged.\n` +
+      `- PERSONAL ACCESSORIES: keep the person's original jewelry, watches, ` +
+      `glasses, handbags, and shoes visible in IMAGE 1. They belong to her.\n` +
+      `- FRAMING: respect the original crop of IMAGE 1. If IMAGE 1 is waist-up and ` +
+      `the garment is full-length, crop the garment naturally at the frame edge. ` +
+      `Do not extend the scene or invent body parts that IMAGE 1 does not show.`;
 
-    const customerLabel =
-      `### IMAGE 1 — CUSTOMER PHOTO\n` +
-      `This is the real customer. Everything about this person must be preserved: ` +
-      `face, hair, skin tone, makeup, body shape, pose, hands position, background, ` +
-      `lighting, camera angle, framing. Treat their identity as sacred.`;
+    // Prompt before IMAGE 2 — product extraction + view inference
+    const productPrompt =
+      `### IMAGE 2 — PRODUCT SOURCE: "${productName}"${categoryHint}\n` +
+      `This image provides the garment to be transferred. Nothing else in IMAGE 2 ` +
+      `has authority over the output.\n` +
+      `- SILENT VIEW CLASSIFICATION: first, internally classify IMAGE 2 as one of ` +
+      `{front, back, side, three-quarter, flat-lay, on-model, on-mannequin, ` +
+      `detail close-up}. Do not output this classification; use it to guide the ` +
+      `reconstruction.\n` +
+      `- PRODUCT EXTRACTION: isolate the garment. If a catalog model or mannequin ` +
+      `appears in IMAGE 2, treat her/it as invisible. Do NOT copy her face, skin, ` +
+      `hair, makeup, body, or pose — only the cloth data (color, pattern, cut, ` +
+      `fabric, stitching) belongs to the output.\n` +
+      `- VIEW INFERENCE:\n` +
+      `  • If IMAGE 2 is BACK or SIDE, reconstruct the missing faces of the ` +
+      `garment plausibly for the category (${productCategory || 'garment'}), ` +
+      `consistent with the front-facing body of IMAGE 1. Do not rotate the ` +
+      `customer to match IMAGE 2.\n` +
+      `  • If IMAGE 2 is FLAT-LAY, ON-MANNEQUIN, or DETAIL, render the garment ` +
+      `as it would naturally drape on the live body of IMAGE 1, with realistic ` +
+      `weight, tension, and folds.\n` +
+      `- MATERIAL FIDELITY: reproduce exact color, print scale, pattern placement, ` +
+      `textile texture (silk/wool/denim/knit/linen/leather), embroidery, buttons, ` +
+      `zippers, seams, belts, ties, straps, slits, hem, neckline, collar, sleeve ` +
+      `length. Do not invent variations. Do not substitute a similar-looking item.`;
 
-    const productLabel =
-      `### IMAGE 2 — PRODUCT TO TRY ON: "${productName}"${categoryHint}\n` +
-      `This is the ONLY garment the customer must be wearing in the output. ` +
-      `Reproduce it EXACTLY as shown: same color, same pattern/print, same fabric, ` +
-      `same cut, same length, same neckline, same sleeves, same collar, same ` +
-      `buttons/zippers, same straps, same belt. Do not invent variations. Do not ` +
-      `substitute with a similar-looking item.`;
-
-    const rulesLabel =
-      `### OUTPUT RULES (STRICT)\n` +
-      `1. REPLACE any clothing currently visible on the person in IMAGE 1 with the ` +
-      `   garment from IMAGE 2. If the customer is already wearing clothes, those ` +
-      `   clothes must disappear and be substituted by the product. Never layer the ` +
-      `   product on top of existing clothes. Never mix pieces from IMAGE 1 outfit ` +
-      `   with the product.\n` +
-      `2. DO NOT add any garment or accessory that is not present in IMAGE 2 ` +
-      `   (no extra jackets, trenches, coats, scarves, belts, bags, or shoes unless ` +
-      `   they come from IMAGE 2).\n` +
-      `3. KEEP the person's face, hair, skin tone, body proportions, and pose from ` +
-      `   IMAGE 1 unchanged. Do not restyle the hair. Do not change the face. Do not ` +
-      `   swap the identity.\n` +
-      `4. KEEP the background, lighting, shadows direction, and camera angle from ` +
-      `   IMAGE 1. The person must appear in the exact same scene.\n` +
-      `5. Fit the garment naturally on the body with realistic drape, folds, and ` +
-      `   shadows that match the lighting of IMAGE 1.\n` +
-      `6. Output a single high-resolution photograph. No text, no logos, no ` +
-      `   watermarks, no collage, no split screen, no multiple people.`;
-
-    const prompt = `${systemIntro}\n\n${customerLabel}`;
-    const productPrompt = `${productLabel}\n\n${rulesLabel}`;
+    // Prompt after IMAGE 2 — transfer rules + negatives + final command
+    const finalPrompt =
+      `### TRANSFER RULES (STRICT)\n` +
+      `1. TOTAL REPLACEMENT: delete ALL original clothing on the person in ` +
+      `IMAGE 1 before drawing the product. The garment from IMAGE 2 must be ` +
+      `painted from scratch over the body silhouette. Never layer the product on ` +
+      `top of existing clothes. Never mix pieces of the original outfit with the ` +
+      `product — even if colors or patterns are similar.\n` +
+      `2. NO ADDITIONS: do not add any garment, outer layer, or accessory that ` +
+      `is not present in IMAGE 2 (no extra trenches, jackets, cardigans, ` +
+      `scarves, belts, bags, shoes, tights, socks).\n` +
+      `3. PHYSICAL COHERENCE: the garment must show realistic tension, gravity, ` +
+      `creases, and folds that match the pose of IMAGE 1.\n` +
+      `4. LIGHTING INTEGRATION: apply the lighting direction, shadow softness, ` +
+      `and color temperature of IMAGE 1 onto the new garment, including ` +
+      `specular highlights and cast shadows on the body.\n` +
+      `5. IDENTITY ANCHOR RECONFIRMED: the output face must be pixel-comparable ` +
+      `to IMAGE 1. No beauty retouching, no age shift, no expression change, ` +
+      `no face-blending with IMAGE 2.\n\n` +
+      `### NEGATIVE CONSTRAINTS (DO NOT)\n` +
+      `- NO face swap, identity blend, or feature morphing between IMAGE 1 and ` +
+      `IMAGE 2.\n` +
+      `- NO text, logos, watermarks, size tags, price stickers, or UI overlays.\n` +
+      `- NO split screen, before/after collage, grid, or multiple panels.\n` +
+      `- NO background change, scene replacement, or extra people.\n` +
+      `- NO anatomical distortion, warped hands, duplicated limbs, or blurred ` +
+      `body parts.\n` +
+      `- NO hair restyle, no makeup change, no skin retouch.\n\n` +
+      `### FINAL COMMAND\n` +
+      `Generate the single high-resolution photorealistic image: the person ` +
+      `from IMAGE 1, in the same pose and scene, wearing ONLY the ` +
+      `${productName} from IMAGE 2. Output one image, nothing else.`;
 
     try {
       const product = await resolveProductImage(productImageUrl);
@@ -211,13 +248,7 @@ export const vtoTryon = onCall<VTOInput, Promise<VTOOutput>>(
                       url: `data:${product.mimeType};base64,${product.base64}`,
                     },
                   },
-                  {
-                    type: 'text',
-                    text:
-                      `Now produce the single photorealistic try-on image: the ` +
-                      `person from IMAGE 1, in the same pose and scene, wearing ` +
-                      `ONLY the garment from IMAGE 2.`,
-                  },
+                  { type: 'text', text: finalPrompt },
                 ],
               },
             ],
