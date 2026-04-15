@@ -250,7 +250,10 @@ export default function Product() {
 
       // 5. Chiama la Cloud Function Firebase (fire — non blocchiamo la UI in attesa).
       //    La function scrive il risultato in Firestore; il listener onSnapshot lo riceve.
-      const vtoCall = httpsCallable(functions, 'vtoTryon');
+      //    Timeout client a 300s per matchare quello backend (Gemini image può impiegare 30-120s).
+      const vtoCall = httpsCallable(functions, 'vtoTryon', {
+        timeout: 300000,
+      });
       vtoCall({
         jobId,
         userImageBase64: base64,
@@ -259,7 +262,16 @@ export default function Product() {
         productName: displayProduct.name,
         productCategory: displayProduct.category || 'Clothing',
       }).catch((err) => {
-        // Se la chiamata fallisce prima che Firestore si aggiorni, mostriamo l'errore
+        const code = err?.code || '';
+        // deadline-exceeded: il client ha smesso di aspettare ma la function può ancora
+        // completare. Lasciamo che sia onSnapshot a chiudere il flusso via Firestore.
+        if (
+          code === 'functions/deadline-exceeded' ||
+          code === 'deadline-exceeded'
+        ) {
+          console.warn('vtoTryon callable timeout — awaiting Firestore update');
+          return;
+        }
         const msg = err?.message || 'Errore durante la generazione.';
         console.error('vtoTryon callable error:', msg);
         // Solo se lo snapshot non ha già gestito lo stato
