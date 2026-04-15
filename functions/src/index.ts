@@ -89,6 +89,14 @@ export const vtoTryon = onCall<VTOInput, Promise<VTOOutput>>(
     memory: '512MiB',
     timeoutSeconds: 300,
     enforceAppCheck: false,
+    // onCall non include in whitelist domini custom (Netlify). Abilitiamo CORS
+    // esplicitamente per il sito di produzione + dev locale. La function è
+    // comunque protetta dal check `request.auth.uid`.
+    cors: [
+      'https://blondejade.netlify.app',
+      'https://theblondes.it',
+      /localhost(:\d+)?$/,
+    ],
   },
   async (request) => {
     // --- Auth ---
