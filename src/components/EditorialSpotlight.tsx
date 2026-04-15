@@ -1,5 +1,6 @@
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
+import rebellionJacket from '../assets/images/rebellion_jacket.png';
 
 export default function EditorialSpotlight() {
   return (
@@ -13,8 +14,8 @@ export default function EditorialSpotlight() {
         >
           <div className="relative aspect-[4/5] overflow-hidden bg-gray-100">
             <img
-              src="https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=1200&auto=format&fit=crop"
-              alt="Editorial Spotlight"
+              src={rebellionJacket}
+              alt="The Art of Rebellion"
               className="w-full h-full object-cover"
               loading="lazy"
               referrerPolicy="no-referrer"
@@ -30,12 +31,15 @@ export default function EditorialSpotlight() {
         >
           <p className="text-[11px] uppercase tracking-[0.35em] text-gray-500 mb-5">Editorial Spotlight</p>
           <h2 className="text-4xl md:text-5xl lg:text-6xl font-serif mb-6 leading-[0.95]">
-            A Softer Take on<br />
-            <span className="italic">Modern Dressing</span>
+            The Art of Rebellion:<br />
+            <span className="italic">Beyond Conventional Luxury</span>
           </h2>
           <p className="text-gray-600 text-sm md:text-[15px] leading-relaxed mb-8 max-w-md">
-            Quiet silhouettes, refined movement and pieces designed to feel effortless from
-            morning light to late plans. A wardrobe edited with confidence, never excess.
+            We don’t follow the rules; we rewrite them. Our vision stems from the need to break
+            the codes of traditional luxury, giving life to unique pieces where high fashion
+            meets street art and baroque embraces punk. Every creation is a manifesto of
+            individuality: hand-customized garments and accessories for those who don’t just
+            want to wear a brand, but want to tell a story of contrast, beauty, and rebellion.
           </p>
           <Link
             to="/shop"

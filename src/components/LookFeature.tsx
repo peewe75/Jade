@@ -1,5 +1,6 @@
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
+import videoHome from '../../Video/video home.mp4';
 
 export default function LookFeature() {
   return (
@@ -37,12 +38,13 @@ export default function LookFeature() {
           className="order-1 lg:order-2"
         >
           <div className="relative aspect-[3/4] overflow-hidden bg-gray-100">
-            <img
-              src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?q=80&w=1200&auto=format&fit=crop"
-              alt="Look Feature"
+            <video
+              src={videoHome}
               className="w-full h-full object-cover"
-              loading="lazy"
-              referrerPolicy="no-referrer"
+              autoPlay
+              loop
+              muted
+              playsInline
             />
           </div>
         </motion.div>
