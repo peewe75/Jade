@@ -1,12 +1,12 @@
 import { motion } from 'motion/react';
 
 const communityImages = [
-  'https://images.unsplash.com/photo-1518622358385-8ea7d0794bf6?q=80&w=400&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1483985988355-763728e1935b?q=80&w=400&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1496747611176-843222e1e57c?q=80&w=400&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=400&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1529139574466-a303027c1d8b?q=80&w=400&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?q=80&w=400&auto=format&fit=crop',
+  '/images/12.jpeg',
+  '/images/20.jpeg',
+  '/images/13.jpeg',
+  '/images/14.jpeg',
+  '/images/15.jpeg',
+  '/images/16.jpeg',
 ];
 
 export default function CommunitySection() {

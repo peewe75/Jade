@@ -65,7 +65,7 @@ export default function About() {
             className="w-full md:w-1/2 aspect-[4/5] bg-gray-100"
           >
             <img 
-              src="https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?q=80&w=1000&auto=format&fit=crop" 
+              src="/images/19.jpeg" 
               alt="Founder Vision" 
               className="w-full h-full object-cover"
               referrerPolicy="no-referrer"

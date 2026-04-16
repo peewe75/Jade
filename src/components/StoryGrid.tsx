@@ -15,21 +15,21 @@ const stories: StoryItem[] = [
     label: 'The Brand',
     title: 'Our Heritage',
     link: '/about',
-    image: 'https://images.unsplash.com/photo-1445205170230-053b83016050?q=80&w=800&auto=format&fit=crop'
+    image: '/images/18.jpeg'
   },
   {
     id: '2',
     label: 'Collection',
     title: 'Spring Edit',
     link: '/shop',
-    image: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?q=80&w=800&auto=format&fit=crop'
+    image: '/images/20.jpeg'
   },
   {
     id: '3',
     label: 'Journal',
     title: 'Style Notes',
     link: '/shop',
-    image: 'https://images.unsplash.com/photo-1558171813-4c088753af8f?q=80&w=800&auto=format&fit=crop'
+    image: '/images/21.jpeg'
   }
 ];
 
