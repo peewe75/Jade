@@ -23,20 +23,25 @@ export default function About() {
         </motion.h1>
       </section>
 
-      {/* Image Full Width */}
+      {/* Image Header with Effect */}
       <motion.section 
         initial={{ opacity: 0 }}
         whileInView={{ opacity: 1 }}
         viewport={{ once: true }}
         transition={{ duration: 1 }}
-        className="w-full h-[60vh] md:h-[80vh] mb-24"
+        className="relative w-full h-[70vh] md:h-[90vh] mb-24 bg-[#be1818] overflow-hidden"
       >
-        <img 
-          src="/images/22.jpeg" 
-          alt="Fashion Lifestyle" 
-          className="w-full h-full object-cover"
-          referrerPolicy="no-referrer"
-        />
+        <div className="absolute inset-0 flex justify-center items-center">
+          <img 
+            src="/images/22.jpeg" 
+            alt="Fashion Lifestyle" 
+            className="h-full object-contain z-10 mx-auto"
+            referrerPolicy="no-referrer"
+          />
+          {/* Elegant Gradient Blend for sides */}
+          <div className="absolute inset-y-0 left-0 w-1/4 bg-gradient-to-r from-[#be1818] to-transparent z-20 pointer-events-none" />
+          <div className="absolute inset-y-0 right-0 w-1/4 bg-gradient-to-l from-[#be1818] to-transparent z-20 pointer-events-none" />
+        </div>
       </motion.section>
 
       {/* Text & Image Split */}
