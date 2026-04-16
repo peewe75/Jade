@@ -32,7 +32,7 @@ export default function About() {
         className="w-full h-[60vh] md:h-[80vh] mb-24"
       >
         <img 
-          src="https://images.unsplash.com/photo-1469334031218-e382a71b716b?q=80&w=2000&auto=format&fit=crop" 
+          src="/images/22.jpeg" 
           alt="Fashion Lifestyle" 
           className="w-full h-full object-cover"
           referrerPolicy="no-referrer"
@@ -40,39 +40,37 @@ export default function About() {
       </motion.section>
 
       {/* Text & Image Split */}
-      <section className="mb-24 bg-[#be1818]">
-        <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto py-16 md:py-24">
-          <div className="flex flex-col md:flex-row items-center gap-12 lg:gap-24">
-            <motion.div 
-              initial={{ opacity: 0, x: -30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.8 }}
-              className="w-full md:w-1/2 text-white"
-            >
-              <h2 className="text-3xl md:text-4xl font-serif mb-6">The Vision</h2>
-              <p className="text-white/80 leading-relaxed mb-6">
-                The Blondes Brand was born from a desire to bridge two distinct worlds: the timeless, effortless elegance of Italian style, deeply rooted in the serene landscapes of Lago di Garda, and the vibrant, bold, and glamorous energy of Miami's Rodeo Road and Colline Avenue.
-              </p>
-              <p className="text-white/80 leading-relaxed">
-                We create pieces for the modern woman who is confident, dynamic, and unapologetic. Our collections are designed to make you feel luxurious whether you are strolling by the lake or attending an exclusive rooftop party in the city.
-              </p>
-            </motion.div>
-            <motion.div 
-              initial={{ opacity: 0, x: 30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.8 }}
-              className="w-full md:w-1/2 aspect-[4/5]"
-            >
-              <img 
-                src="/images/22.jpeg" 
-                alt="Founder Vision" 
-                className="w-full h-full object-cover shadow-2xl"
-                referrerPolicy="no-referrer"
-              />
-            </motion.div>
-          </div>
+      <section className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto mb-24">
+        <div className="flex flex-col md:flex-row items-center gap-12 lg:gap-24">
+          <motion.div 
+            initial={{ opacity: 0, x: -30 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8 }}
+            className="w-full md:w-1/2"
+          >
+            <h2 className="text-3xl md:text-4xl font-serif mb-6">The Vision</h2>
+            <p className="text-gray-600 leading-relaxed mb-6">
+              The Blondes Brand was born from a desire to bridge two distinct worlds: the timeless, effortless elegance of Italian style, deeply rooted in the serene landscapes of Lago di Garda, and the vibrant, bold, and glamorous energy of Miami's Rodeo Road and Colline Avenue.
+            </p>
+            <p className="text-gray-600 leading-relaxed">
+              We create pieces for the modern woman who is confident, dynamic, and unapologetic. Our collections are designed to make you feel luxurious whether you are strolling by the lake or attending an exclusive rooftop party in the city.
+            </p>
+          </motion.div>
+          <motion.div 
+            initial={{ opacity: 0, x: 30 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8 }}
+            className="w-full md:w-1/2 aspect-[4/5] bg-gray-100"
+          >
+            <img 
+              src="/images/19.jpeg" 
+              alt="Founder Vision" 
+              className="w-full h-full object-cover"
+              referrerPolicy="no-referrer"
+            />
+          </motion.div>
         </div>
       </section>
 
