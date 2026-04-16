@@ -29,18 +29,29 @@ export default function About() {
         whileInView={{ opacity: 1 }}
         viewport={{ once: true }}
         transition={{ duration: 1 }}
-        className="relative w-full h-[70vh] md:h-[90vh] mb-24 bg-[#be1818] overflow-hidden"
+        className="relative w-full h-[70vh] md:h-[90vh] mb-24 overflow-hidden bg-[#be1818]"
       >
-        <div className="absolute inset-0 flex justify-center items-center">
+        {/* Blurred background extension */}
+        <div className="absolute inset-0">
+          <img 
+            src="/images/22.jpeg" 
+            alt="Background Effect" 
+            className="w-full h-full object-cover blur-3xl scale-110 opacity-60"
+            referrerPolicy="no-referrer"
+          />
+          <div className="absolute inset-0 bg-[#be1818]/10" />
+        </div>
+
+        {/* Sharp centered image */}
+        <div className="relative h-full flex justify-center items-center z-10">
           <img 
             src="/images/22.jpeg" 
             alt="Fashion Lifestyle" 
-            className="h-full object-contain z-10 mx-auto"
+            className="h-full object-contain mx-auto shadow-2xl"
             referrerPolicy="no-referrer"
           />
-          {/* Elegant Gradient Blend for sides */}
-          <div className="absolute inset-y-0 left-0 w-1/4 bg-gradient-to-r from-[#be1818] to-transparent z-20 pointer-events-none" />
-          <div className="absolute inset-y-0 right-0 w-1/4 bg-gradient-to-l from-[#be1818] to-transparent z-20 pointer-events-none" />
+          {/* Subtle vignette/soften edges */}
+          <div className="absolute inset-0 pointer-events-none shadow-[inset_0_0_100px_rgba(190,24,24,0.3)]" />
         </div>
       </motion.section>
 
