@@ -1,6 +1,5 @@
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
-import rebellionJacket from '../assets/images/rebellion_jacket.png';
 
 export default function EditorialSpotlight() {
   return (
@@ -14,7 +13,7 @@ export default function EditorialSpotlight() {
         >
           <div className="relative aspect-[4/5] overflow-hidden bg-gray-100">
             <img
-              src={rebellionJacket}
+              src="/images/23.jpeg"
               alt="The Art of Rebellion"
               className="w-full h-full object-cover"
               loading="lazy"
