@@ -1,10 +1,10 @@
 {
-  "projectId": "jade-crm-2026-v2",
-  "appId": "1:1083866005673:web:dbf55df2416c3f6827e9b8",
-  "apiKey": "AIzaSyA6DiA3RZGd7pavqGYpaQy7jD0yiNnlNks",
-  "authDomain": "jade-crm-2026-v2.firebaseapp.com",
+  "projectId": "sito-web-28a07",
+  "appId": "1:1084975721549:web:91c2e52c10d50a7734c004",
+  "apiKey": "AIzaSyA7pOzkew8kUXFdjTcIm3i5v5QiuY5xV2k",
+  "authDomain": "sito-web-28a07.firebaseapp.com",
   "firestoreDatabaseId": "(default)",
-  "storageBucket": "jade-crm-2026-v2.firebasestorage.app",
-  "messagingSenderId": "1083866005673",
-  "measurementId": ""
+  "storageBucket": "sito-web-28a07.firebasestorage.app",
+  "messagingSenderId": "1084975721549",
+  "measurementId": "G-DGYH9DE42D"
 }
