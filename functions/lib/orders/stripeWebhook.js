@@ -110,7 +110,13 @@ async function handleSessionCompleted(db, session, resendApiKey) {
             if (!productSnap.exists)
                 continue;
             const data = productSnap.data();
-            const updatedVariants = data.variants.map((v) => v.id === item.variantId
+            const variants = data.variants;
+            // Legacy products use sizes[] and have no variants array — skip stock decrement
+            if (!variants || item.variantId.startsWith('legacy-')) {
+                tx.update(productRef, { updatedAt: firestore_1.FieldValue.serverTimestamp() });
+                continue;
+            }
+            const updatedVariants = variants.map((v) => v.id === item.variantId
                 ? {
                     ...v,
                     stock: Math.max(0, (v.stock ?? 0) - item.qty),
@@ -171,7 +177,12 @@ async function handleSessionExpired(db, session) {
             if (!productSnap.exists)
                 continue;
             const data = productSnap.data();
-            const updatedVariants = data.variants.map((v) => v.id === item.variantId
+            const variants = data.variants;
+            if (!variants || item.variantId.startsWith('legacy-')) {
+                tx.update(productRef, { updatedAt: firestore_1.FieldValue.serverTimestamp() });
+                continue;
+            }
+            const updatedVariants = variants.map((v) => v.id === item.variantId
                 ? { ...v, reserved: Math.max(0, (v.reserved ?? 0) - item.qty) }
                 : v);
             tx.update(productRef, {

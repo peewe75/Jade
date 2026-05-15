@@ -121,7 +121,13 @@ async function handleSessionCompleted(
       const productSnap = await tx.get(productRef);
       if (!productSnap.exists) continue;
       const data = productSnap.data()!;
-      const updatedVariants = (data.variants as any[]).map((v: any) =>
+      const variants: any[] | undefined = data.variants;
+      // Legacy products use sizes[] and have no variants array — skip stock decrement
+      if (!variants || (item.variantId as string).startsWith('legacy-')) {
+        tx.update(productRef, { updatedAt: FieldValue.serverTimestamp() });
+        continue;
+      }
+      const updatedVariants = variants.map((v: any) =>
         v.id === item.variantId
           ? {
               ...v,
@@ -192,7 +198,12 @@ async function handleSessionExpired(
       const productSnap = await tx.get(productRef);
       if (!productSnap.exists) continue;
       const data = productSnap.data()!;
-      const updatedVariants = (data.variants as any[]).map((v: any) =>
+      const variants: any[] | undefined = data.variants;
+      if (!variants || (item.variantId as string).startsWith('legacy-')) {
+        tx.update(productRef, { updatedAt: FieldValue.serverTimestamp() });
+        continue;
+      }
+      const updatedVariants = variants.map((v: any) =>
         v.id === item.variantId
           ? { ...v, reserved: Math.max(0, (v.reserved ?? 0) - (item.qty as number)) }
           : v
