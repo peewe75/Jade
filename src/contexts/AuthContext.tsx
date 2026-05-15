@@ -9,7 +9,8 @@ import {
   updateProfile,
   User as FirebaseUser,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, limit, query, setDoc, serverTimestamp, where } from 'firebase/firestore';
+import { normalizeClientEmail } from '../lib/crm';
 
 interface AuthContextType {
   user: FirebaseUser | null;
@@ -44,13 +45,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await setDoc(userRef, { role: 'admin' }, { merge: true });
     }
 
-    const clientRef = doc(db, 'clients', loggedInUser.uid);
-    const clientSnap = await getDoc(clientRef);
+    const normalizedEmail = normalizeClientEmail(loggedInUser.email);
+    let clientRef = doc(db, 'clients', loggedInUser.uid);
+    let clientSnap = await getDoc(clientRef);
+
+    if (!clientSnap.exists() && normalizedEmail) {
+      const existingClientSnap = await getDocs(query(
+        collection(db, 'clients'),
+        where('normalizedEmail', '==', normalizedEmail),
+        limit(1)
+      ));
+      if (!existingClientSnap.empty) {
+        clientRef = existingClientSnap.docs[0].ref;
+        clientSnap = existingClientSnap.docs[0];
+      } else {
+        const legacyEmailSnap = await getDocs(query(
+          collection(db, 'clients'),
+          where('email', '==', normalizedEmail),
+          limit(1)
+        ));
+        if (!legacyEmailSnap.empty) {
+          clientRef = legacyEmailSnap.docs[0].ref;
+          clientSnap = legacyEmailSnap.docs[0];
+        }
+      }
+    }
+
     if (!clientSnap.exists()) {
       await setDoc(clientRef, {
         uid: loggedInUser.uid,
         name: fallbackName || loggedInUser.displayName || loggedInUser.email?.split('@')[0] || 'Cliente',
-        email: loggedInUser.email,
+        email: normalizedEmail || loggedInUser.email,
+        normalizedEmail,
         photoURL: loggedInUser.photoURL || null,
         source,
         stage: 'new_lead',
@@ -60,6 +86,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+    } else if (normalizedEmail && clientSnap.data().uid !== loggedInUser.uid) {
+      await setDoc(clientRef, {
+        uid: loggedInUser.uid,
+        email: normalizedEmail,
+        normalizedEmail,
+        photoURL: loggedInUser.photoURL || clientSnap.data().photoURL || null,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
     }
   };
 

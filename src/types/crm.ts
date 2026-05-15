@@ -7,6 +7,7 @@ export interface Client {
   uid?: string;
   name: string;
   email?: string;
+  normalizedEmail?: string;
   phone?: string;
   company?: string;
   source?: string;

@@ -16,9 +16,17 @@ import {
 import { db } from '../firebase';
 import type { Client, ClientActivity, ClientTask, ClientTag, ActivityType, TaskStatus, ClientStage } from '../types/crm';
 
+export function normalizeClientEmail(email?: string | null): string | null {
+  const normalized = email?.trim().toLowerCase();
+  return normalized || null;
+}
+
 export async function createClient(clientData: Omit<Client, 'id' | 'createdAt' | 'updatedAt' | 'totalOrders' | 'totalSpent' | 'notesCount'>): Promise<string> {
+  const normalizedEmail = normalizeClientEmail(clientData.email);
   const docRef = await addDoc(collection(db, 'clients'), {
     ...clientData,
+    email: normalizedEmail || clientData.email || null,
+    normalizedEmail,
     totalOrders: 0,
     totalSpent: 0,
     notesCount: 0,
@@ -29,8 +37,12 @@ export async function createClient(clientData: Omit<Client, 'id' | 'createdAt' |
 }
 
 export async function updateClient(clientId: string, data: Partial<Client>): Promise<void> {
+  const normalizedEmail = Object.prototype.hasOwnProperty.call(data, 'email')
+    ? normalizeClientEmail(data.email)
+    : undefined;
   await updateDoc(doc(db, 'clients', clientId), {
     ...data,
+    ...(normalizedEmail !== undefined ? { normalizedEmail } : {}),
     updatedAt: serverTimestamp(),
   });
 }
@@ -195,11 +207,14 @@ export async function importUsersToClients(
     getDocs(collection(db, 'clients')),
   ]);
 
-  const existingUids = new Set(
-    (await getDocs(query(collection(db, 'clients'), where('uid', '!=', null))))
-      .docs.map(d => d.data().uid)
-      .filter(Boolean)
-  );
+  const existingUids = new Set<string>();
+  const existingEmails = new Map<string, string>();
+  clientsSnapshot.docs.forEach((clientDoc) => {
+    const data = clientDoc.data();
+    if (data.uid) existingUids.add(data.uid);
+    const normalizedEmail = normalizeClientEmail(data.normalizedEmail || data.email);
+    if (normalizedEmail) existingEmails.set(normalizedEmail, clientDoc.id);
+  });
 
   let imported = 0;
   for (const userDoc of usersSnapshot.docs) {
@@ -207,12 +222,27 @@ export async function importUsersToClients(
     
     const userData = userDoc.data();
     const emailValue = userData.email;
+    const normalizedEmail = normalizeClientEmail(emailValue);
     const fallbackName = emailValue ? emailValue.split('@')[0] : 'Cliente';
+
+    if (normalizedEmail && existingEmails.has(normalizedEmail)) {
+      const existingClientId = existingEmails.get(normalizedEmail)!;
+      await setDoc(doc(db, 'clients', existingClientId), {
+        uid: userDoc.id,
+        email: normalizedEmail,
+        normalizedEmail,
+        photoURL: userData.photoURL || null,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      existingUids.add(userDoc.id);
+      continue;
+    }
     
     await setDoc(doc(db, 'clients', userDoc.id), {
       uid: userDoc.id,
       name: fallbackName,
-      email: emailValue || null,
+      email: normalizedEmail || null,
+      normalizedEmail,
       photoURL: userData.photoURL || null,
       source: 'import-users',
       stage: 'new_lead',
@@ -224,6 +254,7 @@ export async function importUsersToClients(
     });
     
     await createActivity(userDoc.id, 'imported', 'Importato da utenti', adminUserId);
+    if (normalizedEmail) existingEmails.set(normalizedEmail, userDoc.id);
     imported++;
     onProgress?.(imported);
   }

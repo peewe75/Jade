@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { collection, addDoc, deleteDoc, doc, getDocs, serverTimestamp, updateDoc, query, orderBy } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDocs, serverTimestamp, updateDoc, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { Search, Plus, RefreshCw, Users, Pencil, Trash2, Mail, Phone, Building2, BadgeCheck, Home, Package, UserRoundCheck, CheckCircle2, Circle, FileText, X, Activity, AlertCircle, Clock, User, Heart, Tag as TagIcon } from 'lucide-react';
 import type { Client, ClientStage, ClientActivity, ClientTask, ClientTag } from '../types/crm';
 import { STAGE_OPTIONS, STAGE_LABELS } from '../types/crm';
-import { convertTimestamp, createActivity as createActivityFn, createTask as createTaskFn, updateTask as updateTaskFn, deleteTask as deleteTaskFn, getAllTags, getClientActivities, getClientTasks, importUsersToClients, getAllUsers, updateClientOwner, updateClientTags, isOverdue, isDueToday, type UserRecord } from '../lib/crm';
+import { convertTimestamp, createActivity as createActivityFn, createClient as createClientFn, createTask as createTaskFn, updateTask as updateTaskFn, deleteTask as deleteTaskFn, getAllTags, getClientActivities, getClientTasks, importUsersToClients, getAllUsers, normalizeClientEmail, updateClientOwner, updateClientTags, isOverdue, isDueToday, type UserRecord } from '../lib/crm';
 import { Timestamp } from 'firebase/firestore';
 
 const ADMIN_EMAILS = ['mmalinverno76@gmail.com', 'peewe75@gmail.com', 'mmalinverno@gmail.com', 'avv.sapone@hotmail.it'];
@@ -109,6 +109,7 @@ export default function CRM() {
           uid: data.uid,
           name: data.name || '',
           email: data.email,
+          normalizedEmail: data.normalizedEmail,
           phone: data.phone,
           company: data.company,
           source: data.source,
@@ -129,7 +130,14 @@ export default function CRM() {
           updatedAt: convertTimestamp(data.updatedAt),
         } as Client;
       });
-      setClients(docs);
+      const dedupedDocs = Array.from(
+        docs.reduce((byEmail, client) => {
+          const key = normalizeClientEmail(client.normalizedEmail || client.email) || `id:${client.id}`;
+          if (!byEmail.has(key)) byEmail.set(key, client);
+          return byEmail;
+        }, new Map<string, Client>()).values()
+      );
+      setClients(dedupedDocs);
 
       // Fetch favorites counts for all users to show badges
       try {
@@ -254,9 +262,24 @@ export default function CRM() {
 
     setIsSaving(true);
     try {
+      const normalizedEmail = normalizeClientEmail(form.email);
+      const duplicateClient = normalizedEmail
+        ? clients.find((client) =>
+            client.id !== editingClient?.id &&
+            normalizeClientEmail(client.normalizedEmail || client.email) === normalizedEmail
+          )
+        : undefined;
+
+      if (duplicateClient) {
+        alert(`Esiste gia un contatto con questa email: ${duplicateClient.name || duplicateClient.email}. Modifica quello esistente.`);
+        startEdit(duplicateClient);
+        return;
+      }
+
       const payload = {
         name: form.name.trim(),
-        email: form.email.trim() || null,
+        email: normalizedEmail,
+        normalizedEmail,
         phone: form.phone.trim() || null,
         company: form.company.trim() || null,
         source: form.source.trim() || null,
@@ -281,15 +304,9 @@ export default function CRM() {
           });
         }
       } else {
-        const clientDoc = await addDoc(collection(db, 'clients'), {
-          ...payload,
-          totalOrders: 0,
-          totalSpent: 0,
-          notesCount: 0,
-          createdAt: serverTimestamp(),
-        });
+        const clientId = await createClientFn(payload as any);
         if (user) {
-          await createActivityFn(clientDoc.id, 'created', 'Cliente creato manualmente', user.uid);
+          await createActivityFn(clientId, 'created', 'Cliente creato manualmente', user.uid);
         }
       }
 
