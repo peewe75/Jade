@@ -108,9 +108,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user]);
 
-  const applyItems = useCallback(async (next: CartItem[]) => {
+  const applyItems = useCallback((next: CartItem[]) => {
     commitItems(next);
-    await persistStorage(next);
+    void persistStorage(next).catch((error) => {
+      console.error('Cart persist error:', error);
+      writeLocal(next);
+    });
+    return Promise.resolve();
   }, [commitItems, persistStorage]);
 
   const addItem = useCallback(async (item: CartItem) => {

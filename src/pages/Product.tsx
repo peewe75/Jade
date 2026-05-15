@@ -353,8 +353,9 @@ export default function Product() {
     ? displayProduct.variants
     : (displayProduct.sizes || ['One Size']).map((s, i) => ({ id: `legacy-${i}`, size: s, stock: 1, reserved: 0 }));
 
-  const selectedVariant = displayVariants.find(v => v.id === selectedVariantId);
-  const isSoldOut = displayProduct.status === 'sold_out' || (selectedVariant ? selectedVariant.stock - (selectedVariant.reserved ?? 0) <= 0 : false);
+  const firstAvailableVariant = displayVariants.find(v => v.stock - (v.reserved ?? 0) > 0) ?? displayVariants[0];
+  const selectedVariant = displayVariants.find(v => v.id === selectedVariantId) ?? firstAvailableVariant;
+  const isSoldOut = displayProduct.status === 'sold_out' || !selectedVariant || selectedVariant.stock - (selectedVariant.reserved ?? 0) <= 0;
 
   const displayName = getProductText(displayProduct, i18n.language, 'name') || displayProduct.name;
   const displayDescription = getProductText(displayProduct, i18n.language, 'description') || displayProduct.description;
@@ -449,7 +450,7 @@ export default function Product() {
 
           <VariantSelector
             variants={displayVariants}
-            selectedId={selectedVariantId}
+            selectedId={selectedVariant?.id ?? null}
             onChange={setSelectedVariantId}
             isOneOfAKind={displayProduct.isOneOfAKind}
           />
