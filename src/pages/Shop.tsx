@@ -3,20 +3,32 @@ import { collection, onSnapshot, query, orderBy, getDocs } from 'firebase/firest
 import { db } from '../firebase';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
-import { Heart } from 'lucide-react';
+import { Check, Heart } from 'lucide-react';
 import { useFavorites } from '../contexts/FavoritesContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useCart } from '../contexts/CartContext';
 import { useTranslation } from 'react-i18next';
 import { getProductText } from '../lib/i18nProduct';
+
+interface ProductVariant {
+  id: string;
+  size?: string;
+  color?: string;
+  stock: number;
+  reserved?: number;
+  priceOverride?: number;
+}
 
 interface Product {
   id: string;
   name: string;
   price: number;
+  basePrice?: number;
   images: string[];
   category: string;
   tags?: string[];
   status?: string;
+  variants?: ProductVariant[];
   translations?: { it?: { name?: string }; en?: { name?: string } };
 }
 
@@ -27,7 +39,10 @@ export default function Shop() {
   const [activeCategory, setActiveCategory] = useState('All');
   const { toggleFavorite, isFavorite } = useFavorites();
   const { user } = useAuth();
+  const { addItem } = useCart();
   const { t, i18n } = useTranslation();
+  const [quickAddingId, setQuickAddingId] = useState<string | null>(null);
+  const [quickAddedId, setQuickAddedId] = useState<string | null>(null);
 
   useEffect(() => {
     // Fetch dynamic categories
@@ -61,6 +76,48 @@ export default function Shop() {
   const filteredProducts = activeCategory === 'All' 
     ? products 
     : products.filter(p => p.category === activeCategory);
+
+  const getFirstAvailableVariant = (product: Product): ProductVariant | null => {
+    const variants = product.variants && product.variants.length > 0
+      ? product.variants
+      : [{ id: 'legacy-0', stock: 1, reserved: 0 }];
+
+    return variants.find(variant => variant.stock - (variant.reserved ?? 0) > 0) ?? null;
+  };
+
+  const handleQuickAdd = async (product: Product) => {
+    const variant = getFirstAvailableVariant(product);
+    if (product.status === 'sold_out' || !variant) return;
+
+    setQuickAddingId(product.id);
+    try {
+      const displayName = getProductText(product, i18n.language, 'name') || product.name;
+      const priceSnapshot = variant.priceOverride
+        ?? product.basePrice
+        ?? Math.round(product.price * 100);
+
+      await addItem({
+        productId: product.id,
+        variantId: variant.id,
+        qty: 1,
+        priceSnapshot,
+        nameSnapshot: displayName,
+        imageSnapshot: product.images?.[0] || '',
+        ...(variant.size ? { sizeLabel: variant.size } : {}),
+        ...(variant.color ? { colorLabel: variant.color } : {}),
+      });
+
+      setQuickAddedId(product.id);
+      window.setTimeout(() => {
+        setQuickAddedId(current => current === product.id ? null : current);
+      }, 1600);
+    } catch (error) {
+      console.error('Quick add error:', error);
+      alert(t('cart.addError'));
+    } finally {
+      setQuickAddingId(null);
+    }
+  };
 
   return (
     <main className="flex-grow pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
@@ -105,7 +162,13 @@ export default function Shop() {
             </div>
           ) : filteredProducts.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-              {filteredProducts.map((product, index) => (
+              {filteredProducts.map((product, index) => {
+                const quickVariant = getFirstAvailableVariant(product);
+                const quickUnavailable = product.status === 'sold_out' || !quickVariant;
+                const isAdding = quickAddingId === product.id;
+                const isAdded = quickAddedId === product.id;
+
+                return (
                 <motion.div 
                   key={product.id}
                   initial={{ opacity: 0, y: 20 }}
@@ -156,14 +219,19 @@ export default function Shop() {
                         </button>
                       )}
                       
-                      <div className="absolute bottom-0 left-0 right-0 p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out">
+                      <div className="absolute bottom-0 left-0 right-0 p-4 translate-y-0 sm:translate-y-full sm:group-hover:translate-y-0 transition-transform duration-300 ease-out">
                         <button 
-                          className="w-full bg-white/90 backdrop-blur-sm text-brand-black py-3 text-xs uppercase tracking-widest font-medium hover:bg-brand-black hover:text-white transition-colors"
+                          type="button"
+                          disabled={quickUnavailable || isAdding}
+                          className="flex w-full items-center justify-center gap-2 bg-white/90 backdrop-blur-sm text-brand-black py-3 text-xs uppercase tracking-widest font-medium hover:bg-brand-black hover:text-white transition-colors disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-white/90 disabled:hover:text-brand-black"
                           onClick={(e) => {
                             e.preventDefault();
+                            e.stopPropagation();
+                            void handleQuickAdd(product);
                           }}
                         >
-                          {t('shop.quickAdd')}
+                          {isAdded && <Check className="h-4 w-4" />}
+                          {isAdded ? t('cart.added') : isAdding ? t('common.loading') : quickUnavailable ? t('product.soldOut') : t('shop.quickAdd')}
                         </button>
                       </div>
                     </div>
@@ -176,7 +244,8 @@ export default function Shop() {
                     </div>
                   </Link>
                 </motion.div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="text-center py-24 bg-gray-50 border border-gray-100 flex flex-col items-center justify-center">

@@ -31,11 +31,15 @@ function writeLocal(items: CartItem[]) {
   localStorage.setItem(LS_KEY, JSON.stringify(items));
 }
 
+function itemKey(item: CartItem) {
+  return `${item.productId}:${item.variantId}`;
+}
+
 function mergeItems(base: CartItem[], incoming: CartItem[]): CartItem[] {
   const map = new Map<string, CartItem>();
-  for (const item of base) map.set(`${item.productId}:${item.variantId}`, item);
+  for (const item of base) map.set(itemKey(item), item);
   for (const item of incoming) {
-    const key = `${item.productId}:${item.variantId}`;
+    const key = itemKey(item);
     const existing = map.get(key);
     if (existing) {
       // pezzo unico: take max qty (effectively 1), keep newest snapshot
@@ -52,11 +56,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(false);
   const isMerging = useRef(false);
+  const itemsRef = useRef<CartItem[]>([]);
+
+  const commitItems = useCallback((next: CartItem[]) => {
+    itemsRef.current = next;
+    setItems(next);
+  }, []);
 
   // Load cart on auth change
   useEffect(() => {
     if (!user) {
-      setItems(readLocal());
+      commitItems(readLocal());
       return;
     }
 
@@ -73,13 +83,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           const merged = mergeItems(firestoreItems, localItems);
           await setDoc(cartRef, { items: merged, updatedAt: serverTimestamp(), currency: 'EUR' }, { merge: true });
           writeLocal([]);
-          setItems(merged);
+          commitItems(merged);
         } else {
-          setItems(firestoreItems);
+          commitItems(firestoreItems);
         }
       } catch (err) {
         console.error('Cart load error:', err);
-        setItems(readLocal());
+        commitItems(readLocal());
       } finally {
         setLoading(false);
         isMerging.current = false;
@@ -87,10 +97,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     };
 
     void run();
-  }, [user]);
+  }, [user, commitItems]);
 
-  const persist = useCallback(async (next: CartItem[]) => {
-    setItems(next);
+  const persistStorage = useCallback(async (next: CartItem[]) => {
     if (user) {
       const cartRef = doc(db, 'carts', user.uid);
       await setDoc(cartRef, { items: next, updatedAt: serverTimestamp(), currency: 'EUR' }, { merge: true });
@@ -99,42 +108,34 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user]);
 
+  const applyItems = useCallback(async (next: CartItem[]) => {
+    commitItems(next);
+    await persistStorage(next);
+  }, [commitItems, persistStorage]);
+
   const addItem = useCallback(async (item: CartItem) => {
-    const key = (i: CartItem) => `${i.productId}:${i.variantId}`;
-    setItems(prev => {
-      const existing = prev.find(i => key(i) === key(item));
-      let next: CartItem[];
-      if (existing) {
-        next = prev.map(i => key(i) === key(item) ? { ...i, qty: Math.min(i.qty + item.qty, 99) } : i);
-      } else {
-        next = [...prev, item];
-      }
-      // fire-and-forget persist
-      void persist(next);
-      return next;
-    });
-  }, [persist]);
+    const existing = itemsRef.current.find(i => itemKey(i) === itemKey(item));
+    const next = existing
+      ? itemsRef.current.map(i => itemKey(i) === itemKey(item) ? { ...i, qty: Math.min(i.qty + item.qty, 99) } : i)
+      : [...itemsRef.current, item];
+
+    await applyItems(next);
+  }, [applyItems]);
 
   const removeItem = useCallback(async (productId: string, variantId: string) => {
-    setItems(prev => {
-      const next = prev.filter(i => !(i.productId === productId && i.variantId === variantId));
-      void persist(next);
-      return next;
-    });
-  }, [persist]);
+    const next = itemsRef.current.filter(i => !(i.productId === productId && i.variantId === variantId));
+    await applyItems(next);
+  }, [applyItems]);
 
   const updateQty = useCallback(async (productId: string, variantId: string, qty: number) => {
     if (qty < 1) { await removeItem(productId, variantId); return; }
-    setItems(prev => {
-      const next = prev.map(i => i.productId === productId && i.variantId === variantId ? { ...i, qty: Math.min(qty, 99) } : i);
-      void persist(next);
-      return next;
-    });
-  }, [persist, removeItem]);
+    const next = itemsRef.current.map(i => i.productId === productId && i.variantId === variantId ? { ...i, qty: Math.min(qty, 99) } : i);
+    await applyItems(next);
+  }, [applyItems, removeItem]);
 
   const clearCart = useCallback(async () => {
-    await persist([]);
-  }, [persist]);
+    await applyItems([]);
+  }, [applyItems]);
 
   const count = items.reduce((s, i) => s + i.qty, 0);
   const subtotal = items.reduce((s, i) => s + i.priceSnapshot * i.qty, 0);

@@ -123,7 +123,9 @@
     "shippingNote": "Shipping calculated at time of order",
     "holdNotice": "One-of-a-kind pieces are reserved for 15 minutes during checkout.",
     "continueShopping": "Continue shopping",
-    "remove": "Remove"
+    "remove": "Remove",
+    "added": "Added",
+    "addError": "I couldn't add this product to the cart. Please try again."
   },
   "common": {
     "loading": "Loading...",

@@ -123,7 +123,9 @@
     "shippingNote": "Spedizione calcolata al momento dell'ordine",
     "holdNotice": "I pezzi unici sono riservati per 15 minuti durante il checkout.",
     "continueShopping": "Continua lo shopping",
-    "remove": "Rimuovi"
+    "remove": "Rimuovi",
+    "added": "Aggiunto",
+    "addError": "Non sono riuscito ad aggiungere il prodotto al carrello. Riprova."
   },
   "common": {
     "loading": "Caricamento...",

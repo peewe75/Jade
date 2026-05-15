@@ -95,6 +95,8 @@ export default function Product() {
   const [product, setProduct] = useState<ProductData | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
+  const [addedToCart, setAddedToCart] = useState(false);
   const [openAccordion, setOpenAccordion] = useState<string | null>('details');
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
@@ -455,26 +457,37 @@ export default function Product() {
           {/* Add to Cart & VTO */}
           <div className="space-y-3 mb-8">
             <button
-              disabled={isSoldOut}
-              onClick={() => {
+              disabled={isSoldOut || isAddingToCart}
+              onClick={async () => {
                 if (isSoldOut || !selectedVariant) return;
                 const priceSnapshot = selectedVariant.priceOverride
                   ?? displayProduct.basePrice
                   ?? Math.round(displayProduct.price * 100);
-                void addItem({
-                  productId: displayProduct.id,
-                  variantId: selectedVariant.id,
-                  qty: 1,
-                  priceSnapshot,
-                  nameSnapshot: displayName,
-                  imageSnapshot: heroImage || '',
-                  ...(selectedVariant.size ? { sizeLabel: selectedVariant.size } : {}),
-                  ...(selectedVariant.color ? { colorLabel: selectedVariant.color } : {}),
-                });
+
+                setIsAddingToCart(true);
+                try {
+                  await addItem({
+                    productId: displayProduct.id,
+                    variantId: selectedVariant.id,
+                    qty: 1,
+                    priceSnapshot,
+                    nameSnapshot: displayName,
+                    imageSnapshot: heroImage || '',
+                    ...(selectedVariant.size ? { sizeLabel: selectedVariant.size } : {}),
+                    ...(selectedVariant.color ? { colorLabel: selectedVariant.color } : {}),
+                  });
+                  setAddedToCart(true);
+                  window.setTimeout(() => setAddedToCart(false), 1600);
+                } catch (error) {
+                  console.error('Add to cart error:', error);
+                  alert(t('cart.addError'));
+                } finally {
+                  setIsAddingToCart(false);
+                }
               }}
               className="w-full bg-brand-black text-white py-4 uppercase tracking-widest text-sm font-medium hover:bg-gray-900 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {isSoldOut ? t('product.soldOut') : t('product.addToCart')}
+              {isSoldOut ? t('product.soldOut') : addedToCart ? t('cart.added') : isAddingToCart ? t('common.loading') : t('product.addToCart')}
             </button>
             
             <button 
