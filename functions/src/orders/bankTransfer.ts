@@ -2,6 +2,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { Resend } from 'resend';
+import { resolveVariant, reserveVariantInTx } from './_variantHelpers';
 
 const resendKey = defineSecret('RESEND_API_KEY');
 
@@ -82,16 +83,11 @@ export const createBankTransferOrder = onCall<BankTransferInput, Promise<BankTra
       const snap = productSnaps[i];
       if (!snap.exists) throw new HttpsError('not-found', `Prodotto ${item.productId} non trovato.`);
       const data = snap.data()!;
-      const variant = (data.variants as any[] | undefined)?.find((v: any) => v.id === item.variantId);
-      if (!variant) throw new HttpsError('not-found', `Variante ${item.variantId} non trovata.`);
-      const available = (variant.stock ?? 0) - (variant.reserved ?? 0);
-      if (available < item.qty) {
-        throw new HttpsError('resource-exhausted', `Quantità non disponibile per ${data.name as string}.`);
-      }
-      const unitPrice: number =
-        variant.priceOverride ?? data.basePrice ?? Math.round(((data.price as number) ?? 0) * 100);
       const name: string =
         (data.translations as any)?.[locale]?.name ?? (data.name as string) ?? 'Prodotto';
+      const variant = resolveVariant(data, item.variantId, item.qty, name);
+      const unitPrice: number =
+        variant.priceOverride ?? data.basePrice ?? Math.round(((data.price as number) ?? 0) * 100);
       return {
         ...item,
         productRef: snap.ref,
@@ -108,18 +104,7 @@ export const createBankTransferOrder = onCall<BankTransferInput, Promise<BankTra
       const freshSnaps = await Promise.all(enrichedItems.map(ei => tx.get(ei.productRef)));
       for (let i = 0; i < enrichedItems.length; i++) {
         const { variantId, qty } = enrichedItems[i];
-        const data = freshSnaps[i].data()!;
-        const v = (data.variants as any[]).find((vv: any) => vv.id === variantId);
-        if (!v || (v.stock - (v.reserved ?? 0)) < qty) {
-          throw new HttpsError('resource-exhausted', 'Quantità non disponibile (aggiornata).');
-        }
-        const updatedVariants = (data.variants as any[]).map((vv: any) =>
-          vv.id === variantId ? { ...vv, reserved: (vv.reserved ?? 0) + qty } : vv
-        );
-        tx.update(enrichedItems[i].productRef, {
-          variants: updatedVariants,
-          updatedAt: FieldValue.serverTimestamp(),
-        });
+        reserveVariantInTx(tx, enrichedItems[i].productRef, freshSnaps[i].data()!, variantId, qty);
       }
     });
 

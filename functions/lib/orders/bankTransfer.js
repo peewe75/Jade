@@ -5,6 +5,7 @@ const https_1 = require("firebase-functions/v2/https");
 const params_1 = require("firebase-functions/params");
 const firestore_1 = require("firebase-admin/firestore");
 const resend_1 = require("resend");
+const _variantHelpers_1 = require("./_variantHelpers");
 const resendKey = (0, params_1.defineSecret)('RESEND_API_KEY');
 const REGION = 'europe-west1';
 const CORS_ORIGINS = [
@@ -36,15 +37,9 @@ exports.createBankTransferOrder = (0, https_1.onCall)({
         if (!snap.exists)
             throw new https_1.HttpsError('not-found', `Prodotto ${item.productId} non trovato.`);
         const data = snap.data();
-        const variant = data.variants?.find((v) => v.id === item.variantId);
-        if (!variant)
-            throw new https_1.HttpsError('not-found', `Variante ${item.variantId} non trovata.`);
-        const available = (variant.stock ?? 0) - (variant.reserved ?? 0);
-        if (available < item.qty) {
-            throw new https_1.HttpsError('resource-exhausted', `Quantità non disponibile per ${data.name}.`);
-        }
-        const unitPrice = variant.priceOverride ?? data.basePrice ?? Math.round((data.price ?? 0) * 100);
         const name = data.translations?.[locale]?.name ?? data.name ?? 'Prodotto';
+        const variant = (0, _variantHelpers_1.resolveVariant)(data, item.variantId, item.qty, name);
+        const unitPrice = variant.priceOverride ?? data.basePrice ?? Math.round((data.price ?? 0) * 100);
         return {
             ...item,
             productRef: snap.ref,
@@ -60,16 +55,7 @@ exports.createBankTransferOrder = (0, https_1.onCall)({
         const freshSnaps = await Promise.all(enrichedItems.map(ei => tx.get(ei.productRef)));
         for (let i = 0; i < enrichedItems.length; i++) {
             const { variantId, qty } = enrichedItems[i];
-            const data = freshSnaps[i].data();
-            const v = data.variants.find((vv) => vv.id === variantId);
-            if (!v || (v.stock - (v.reserved ?? 0)) < qty) {
-                throw new https_1.HttpsError('resource-exhausted', 'Quantità non disponibile (aggiornata).');
-            }
-            const updatedVariants = data.variants.map((vv) => vv.id === variantId ? { ...vv, reserved: (vv.reserved ?? 0) + qty } : vv);
-            tx.update(enrichedItems[i].productRef, {
-                variants: updatedVariants,
-                updatedAt: firestore_1.FieldValue.serverTimestamp(),
-            });
+            (0, _variantHelpers_1.reserveVariantInTx)(tx, enrichedItems[i].productRef, freshSnaps[i].data(), variantId, qty);
         }
     });
     // 3. Order number
