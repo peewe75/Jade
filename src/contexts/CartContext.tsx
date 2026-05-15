@@ -13,7 +13,7 @@ interface CartContextType {
   loading: boolean;
   addItem: (item: CartItem) => Promise<void>;
   removeItem: (productId: string, variantId: string) => Promise<void>;
-  updateQty: (productId: string, variantId: string, qty: number) => Promise<void>;
+  updateQty: (productId: string, variantId: string, qty: number, maxQty?: number) => Promise<void>;
   clearCart: () => Promise<void>;
 }
 
@@ -33,6 +33,11 @@ function writeLocal(items: CartItem[]) {
 
 function itemKey(item: CartItem) {
   return `${item.productId}:${item.variantId}`;
+}
+
+function clampCartQty(qty: number, maxQty?: number) {
+  const upper = Math.max(1, maxQty ?? 99);
+  return Math.min(Math.max(1, qty), upper);
 }
 
 function mergeItems(base: CartItem[], incoming: CartItem[]): CartItem[] {
@@ -120,8 +125,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const addItem = useCallback(async (item: CartItem) => {
     const existing = itemsRef.current.find(i => itemKey(i) === itemKey(item));
     const next = existing
-      ? itemsRef.current.map(i => itemKey(i) === itemKey(item) ? { ...i, qty: Math.min(i.qty + item.qty, 99) } : i)
-      : [...itemsRef.current, item];
+      ? itemsRef.current.map(i => itemKey(i) === itemKey(item)
+        ? { ...i, ...item, qty: clampCartQty(i.qty + item.qty, item.maxQtySnapshot ?? i.maxQtySnapshot) }
+        : i)
+      : [...itemsRef.current, { ...item, qty: clampCartQty(item.qty, item.maxQtySnapshot) }];
 
     await applyItems(next);
   }, [applyItems]);
@@ -131,9 +138,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     await applyItems(next);
   }, [applyItems]);
 
-  const updateQty = useCallback(async (productId: string, variantId: string, qty: number) => {
+  const updateQty = useCallback(async (productId: string, variantId: string, qty: number, maxQty?: number) => {
     if (qty < 1) { await removeItem(productId, variantId); return; }
-    const next = itemsRef.current.map(i => i.productId === productId && i.variantId === variantId ? { ...i, qty: Math.min(qty, 99) } : i);
+    const next = itemsRef.current.map(i => i.productId === productId && i.variantId === variantId
+      ? { ...i, maxQtySnapshot: maxQty ?? i.maxQtySnapshot, qty: clampCartQty(qty, maxQty ?? i.maxQtySnapshot) }
+      : i);
     await applyItems(next);
   }, [applyItems, removeItem]);
 

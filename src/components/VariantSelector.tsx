@@ -16,12 +16,18 @@ interface Props {
   isOneOfAKind?: boolean;
 }
 
-function stockLabel(v: ProductVariant, t: (k: string) => string, isOneOfAKind?: boolean): { text: string; cls: string } {
+function stockLabel(
+  v: ProductVariant,
+  t: (k: string, options?: Record<string, unknown>) => string,
+  options: { isOneOfAKind?: boolean; isSingleDefault?: boolean } = {}
+): { text: string; cls: string } {
   const qty = v.stock - (v.reserved ?? 0);
   if (qty <= 0) return { text: t('product.soldOut'), cls: 'text-red-500' };
-  if (isOneOfAKind || qty === 1) return { text: t('product.oneAvailable'), cls: 'text-emerald-600' };
+  if (options.isOneOfAKind) return { text: t('product.oneOfAKind'), cls: 'text-emerald-600' };
+  if (options.isSingleDefault) return { text: t('product.singleVariant'), cls: 'text-emerald-600' };
+  if (qty === 1) return { text: t('product.oneAvailable'), cls: 'text-emerald-600' };
   if (v.reserved > 0) return { text: t('product.reserved'), cls: 'text-orange-500' };
-  return { text: `${qty} ${t('product.available')}`, cls: 'text-gray-500' };
+  return { text: t('product.availableCount', { count: qty }), cls: 'text-gray-500' };
 }
 
 export default function VariantSelector({ variants, selectedId, onChange, isOneOfAKind }: Props) {
@@ -36,7 +42,7 @@ export default function VariantSelector({ variants, selectedId, onChange, isOneO
 
   if (isSingleDefault) {
     const v = variants[0];
-    const { text, cls } = stockLabel(v, t, isOneOfAKind);
+    const { text, cls } = stockLabel(v, t, { isOneOfAKind, isSingleDefault });
     return (
       <div className="mb-8">
         <p className={`text-xs uppercase tracking-widest ${cls}`}>{text}</p>
@@ -97,8 +103,8 @@ export default function VariantSelector({ variants, selectedId, onChange, isOneO
       )}
 
       {selected && (
-        <p className={`text-xs uppercase tracking-widest ${stockLabel(selected, t, isOneOfAKind).cls}`}>
-          {stockLabel(selected, t, isOneOfAKind).text}
+        <p className={`text-xs uppercase tracking-widest ${stockLabel(selected, t, { isOneOfAKind }).cls}`}>
+          {stockLabel(selected, t, { isOneOfAKind }).text}
         </p>
       )}
     </div>

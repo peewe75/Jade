@@ -474,6 +474,7 @@ export default function Product() {
                     priceSnapshot,
                     nameSnapshot: displayName,
                     imageSnapshot: heroImage || '',
+                    maxQtySnapshot: Math.max(1, selectedVariant.stock - (selectedVariant.reserved ?? 0)),
                     ...(selectedVariant.size ? { sizeLabel: selectedVariant.size } : {}),
                     ...(selectedVariant.color ? { colorLabel: selectedVariant.color } : {}),
                   });

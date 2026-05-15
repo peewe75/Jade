@@ -103,6 +103,7 @@ export default function Shop() {
         priceSnapshot,
         nameSnapshot: displayName,
         imageSnapshot: product.images?.[0] || '',
+        maxQtySnapshot: Math.max(1, variant.stock - (variant.reserved ?? 0)),
         ...(variant.size ? { sizeLabel: variant.size } : {}),
         ...(variant.color ? { colorLabel: variant.color } : {}),
       });
