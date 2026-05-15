@@ -6,6 +6,8 @@ import { Link } from 'react-router-dom';
 import { Heart } from 'lucide-react';
 import { useFavorites } from '../contexts/FavoritesContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useTranslation } from 'react-i18next';
+import { getProductText } from '../lib/i18nProduct';
 
 interface Product {
   id: string;
@@ -14,6 +16,8 @@ interface Product {
   images: string[];
   category: string;
   tags?: string[];
+  status?: string;
+  translations?: { it?: { name?: string }; en?: { name?: string } };
 }
 
 export default function Shop() {
@@ -23,6 +27,7 @@ export default function Shop() {
   const [activeCategory, setActiveCategory] = useState('All');
   const { toggleFavorite, isFavorite } = useFavorites();
   const { user } = useAuth();
+  const { t, i18n } = useTranslation();
 
   useEffect(() => {
     // Fetch dynamic categories
@@ -40,11 +45,10 @@ export default function Shop() {
 
     const q = query(collection(db, 'products'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const productsData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Product[];
-      setProducts(productsData);
+      const productsData = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() })) as Product[];
+      const visible = productsData.filter(p => !p.status || p.status === 'active' || p.status === 'sold_out');
+      setProducts(visible);
       setLoading(false);
     }, (error) => {
       console.error("Error fetching products:", error);
@@ -61,23 +65,23 @@ export default function Shop() {
   return (
     <main className="flex-grow pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
       <div className="text-center mb-16">
-        <h1 className="text-5xl md:text-7xl font-serif mb-4 tracking-tight">Shop <span className="italic">All</span></h1>
+        <h1 className="text-5xl md:text-7xl font-serif mb-4 tracking-tight">{t('shop.title')} <span className="italic">{t('shop.titleAll')}</span></h1>
         <div className="w-16 h-[1px] bg-brand-black mx-auto mb-6"></div>
-        <p className="text-brand-gray-dark text-[10px] tracking-[0.4em] uppercase">Elegance in every stitch</p>
+        <p className="text-brand-gray-dark text-[10px] tracking-[0.4em] uppercase">{t('shop.subtitle')}</p>
       </div>
 
       <div className="flex flex-col md:flex-row gap-8 lg:gap-16">
         {/* Sidebar / Filters */}
         <div className="w-full md:w-56 shrink-0 md:sticky md:top-24 h-fit">
-          <h3 className="text-[10px] uppercase tracking-[0.3em] font-bold mb-8 text-brand-black border-b border-gray-100 pb-2">Collections</h3>
+          <h3 className="text-[10px] uppercase tracking-[0.3em] font-bold mb-8 text-brand-black border-b border-gray-100 pb-2">{t('shop.collections')}</h3>
           <ul className="space-y-4 text-xs text-brand-gray-dark flex flex-row md:flex-col overflow-x-auto md:overflow-visible pb-4 md:pb-0 gap-6 md:gap-0 uppercase tracking-widest">
             {categories.map(category => (
               <li key={category} className="shrink-0">
-                <button 
+                <button
                   onClick={() => setActiveCategory(category)}
                   className={`relative transition-all duration-300 hover:text-brand-black ${activeCategory === category ? 'text-brand-black font-semibold' : ''}`}
                 >
-                  {category}
+                  {category === 'All' ? t('shop.all') : category}
                   {activeCategory === category && (
                     <motion.div layoutId="category-underline" className="absolute -bottom-1 left-0 right-0 h-[1px] bg-brand-black" />
                   )}
@@ -122,7 +126,11 @@ export default function Shop() {
                         <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs uppercase tracking-widest">No Image</div>
                       )}
                       
-                      {product.tags && product.tags[0] && (
+                      {product.status === 'sold_out' ? (
+                        <div className="absolute top-4 left-4 bg-black text-white px-3 py-1 text-[10px] uppercase tracking-widest font-medium">
+                          {t('product.soldOut')}
+                        </div>
+                      ) : product.tags && product.tags[0] && (
                         <div className="absolute top-4 left-4 bg-white px-3 py-1 text-[10px] uppercase tracking-widest font-medium">
                           {product.tags[0]}
                         </div>
@@ -153,17 +161,16 @@ export default function Shop() {
                           className="w-full bg-white/90 backdrop-blur-sm text-brand-black py-3 text-xs uppercase tracking-widest font-medium hover:bg-brand-black hover:text-white transition-colors"
                           onClick={(e) => {
                             e.preventDefault();
-                            // Add to cart logic
                           }}
                         >
-                          Quick Add
+                          {t('shop.quickAdd')}
                         </button>
                       </div>
                     </div>
                     
                     <div className="flex justify-between items-start">
                       <div>
-                        <h3 className="text-sm font-medium mb-1">{product.name}</h3>
+                        <h3 className="text-sm font-medium mb-1">{getProductText(product, i18n.language, 'name') || product.name}</h3>
                         <p className="text-sm text-gray-500">€{product.price.toFixed(2)}</p>
                       </div>
                     </div>
@@ -173,11 +180,11 @@ export default function Shop() {
             </div>
           ) : (
             <div className="text-center py-24 bg-gray-50 border border-gray-100 flex flex-col items-center justify-center">
-              <h3 className="text-xl font-serif mb-2">No products found</h3>
+              <h3 className="text-xl font-serif mb-2">{t('shop.noProducts')}</h3>
               <p className="text-gray-500 text-sm max-w-md mx-auto">
-                {activeCategory === 'All' 
-                  ? "We are currently updating our collection. Check back soon for new arrivals!" 
-                  : `We don't have any ${activeCategory.toLowerCase()} at the moment.`}
+                {activeCategory === 'All'
+                  ? t('shop.noProductsAll')
+                  : t('shop.noProductsCategory')}
               </p>
             </div>
           )}

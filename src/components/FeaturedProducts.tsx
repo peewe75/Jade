@@ -6,6 +6,8 @@ import { db } from '../firebase';
 import { GripVertical, Heart } from 'lucide-react';
 import { useFavorites } from '../contexts/FavoritesContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useTranslation } from 'react-i18next';
+import { getProductText } from '../lib/i18nProduct';
 
 interface Product {
   id: string;
@@ -61,6 +63,7 @@ export default function FeaturedProducts() {
   const [loading, setLoading] = useState(true);
   const { toggleFavorite, isFavorite } = useFavorites();
   const { user } = useAuth();
+  const { t, i18n } = useTranslation();
 
   useEffect(() => {
     const fetchFeaturedProducts = async () => {
@@ -107,11 +110,11 @@ export default function FeaturedProducts() {
     <section className="py-24 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto" id="shop">
       <div className="flex flex-col md:flex-row md:items-end justify-between mb-12">
         <div>
-          <h2 className="text-3xl md:text-4xl font-serif mb-4">Trending Now</h2>
-          <p className="text-gray-500 text-sm tracking-wide uppercase">As seen on TikTok & Instagram</p>
+          <h2 className="text-3xl md:text-4xl font-serif mb-4">{t('home.trendingNow')}</h2>
+          <p className="text-gray-500 text-sm tracking-wide uppercase">{t('home.trendingSubtitle')}</p>
         </div>
         <Link to="/shop" className="hidden md:inline-block border-b border-brand-black pb-1 text-sm uppercase tracking-widest hover:text-gray-500 hover:border-gray-500 transition-colors">
-          View All
+          {t('home.viewAll')}
         </Link>
       </div>
 
@@ -173,7 +176,7 @@ export default function FeaturedProducts() {
               
               <div className="flex justify-between items-start">
                 <div>
-                  <h3 className="text-sm font-medium mb-1">{product.name}</h3>
+                  <h3 className="text-sm font-medium mb-1">{getProductText(product, i18n.language, 'name') || product.name}</h3>
                   <p className="text-sm text-gray-500">{typeof product.price === 'number' ? `€${product.price.toFixed(2)}` : product.price}</p>
                 </div>
                 <GripVertical className="w-4 h-4 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -185,7 +188,7 @@ export default function FeaturedProducts() {
       
       <div className="mt-12 text-center md:hidden">
         <Link to="/shop" className="inline-block border border-brand-black px-8 py-3 text-sm uppercase tracking-widest hover:bg-brand-black hover:text-white transition-colors">
-          View All Collection
+          {t('shop.viewAllCollection')}
         </Link>
       </div>
     </section>

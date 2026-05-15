@@ -1,11 +1,27 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.vtoTryon = void 0;
+exports.vtoTryon = exports.adminConfirmShipping = exports.adminQuoteShipping = exports.onOrderCreated = exports.nowPaymentsWebhook = exports.createCryptoPayment = exports.adminConfirmBankTransfer = exports.createBankTransferOrder = exports.stripeWebhook = exports.createCheckoutSession = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const params_1 = require("firebase-functions/params");
 const app_1 = require("firebase-admin/app");
 const firestore_1 = require("firebase-admin/firestore");
 const storage_1 = require("firebase-admin/storage");
+// Order functions (must be imported AFTER initializeApp below)
+var createCheckoutSession_1 = require("./orders/createCheckoutSession");
+Object.defineProperty(exports, "createCheckoutSession", { enumerable: true, get: function () { return createCheckoutSession_1.createCheckoutSession; } });
+var stripeWebhook_1 = require("./orders/stripeWebhook");
+Object.defineProperty(exports, "stripeWebhook", { enumerable: true, get: function () { return stripeWebhook_1.stripeWebhook; } });
+var bankTransfer_1 = require("./orders/bankTransfer");
+Object.defineProperty(exports, "createBankTransferOrder", { enumerable: true, get: function () { return bankTransfer_1.createBankTransferOrder; } });
+Object.defineProperty(exports, "adminConfirmBankTransfer", { enumerable: true, get: function () { return bankTransfer_1.adminConfirmBankTransfer; } });
+var cryptoPayment_1 = require("./orders/cryptoPayment");
+Object.defineProperty(exports, "createCryptoPayment", { enumerable: true, get: function () { return cryptoPayment_1.createCryptoPayment; } });
+Object.defineProperty(exports, "nowPaymentsWebhook", { enumerable: true, get: function () { return cryptoPayment_1.nowPaymentsWebhook; } });
+var onOrderCreated_1 = require("./orders/onOrderCreated");
+Object.defineProperty(exports, "onOrderCreated", { enumerable: true, get: function () { return onOrderCreated_1.onOrderCreated; } });
+var adminActions_1 = require("./orders/adminActions");
+Object.defineProperty(exports, "adminQuoteShipping", { enumerable: true, get: function () { return adminActions_1.adminQuoteShipping; } });
+Object.defineProperty(exports, "adminConfirmShipping", { enumerable: true, get: function () { return adminActions_1.adminConfirmShipping; } });
 (0, app_1.initializeApp)();
 const openrouterKey = (0, params_1.defineSecret)('OPENROUTER_API_KEY');
 const VTO_MODEL = 'google/gemini-2.5-flash-image';
@@ -69,8 +85,7 @@ exports.vtoTryon = (0, https_1.onCall)({
     // esplicitamente per il sito di produzione + dev locale. La function è
     // comunque protetta dal check `request.auth.uid`.
     cors: [
-        'https://blondejade.netlify.app',
-        'https://theblondes.it',
+        'https://theblondesconcept.netlify.app',
         /localhost(:\d+)?$/,
     ],
 }, async (request) => {

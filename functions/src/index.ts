@@ -4,6 +4,14 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 
+// Order functions (must be imported AFTER initializeApp below)
+export { createCheckoutSession } from './orders/createCheckoutSession';
+export { stripeWebhook } from './orders/stripeWebhook';
+export { createBankTransferOrder, adminConfirmBankTransfer } from './orders/bankTransfer';
+export { createCryptoPayment, nowPaymentsWebhook } from './orders/cryptoPayment';
+export { onOrderCreated } from './orders/onOrderCreated';
+export { adminQuoteShipping, adminConfirmShipping } from './orders/adminActions';
+
 initializeApp();
 
 const openrouterKey = defineSecret('OPENROUTER_API_KEY');
@@ -94,8 +102,7 @@ export const vtoTryon = onCall<VTOInput, Promise<VTOOutput>>(
     // esplicitamente per il sito di produzione + dev locale. La function è
     // comunque protetta dal check `request.auth.uid`.
     cors: [
-      'https://blondejade.netlify.app',
-      'https://theblondes.it',
+      'https://theblondesconcept.netlify.app',
       /localhost(:\d+)?$/,
     ],
   },

@@ -8,15 +8,26 @@ import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import Tilt from 'react-parallax-tilt';
+import { useTranslation } from 'react-i18next';
+import { getProductText } from '../lib/i18nProduct';
+import VariantSelector, { type ProductVariant } from '../components/VariantSelector';
+import ProductStory, { type Story } from '../components/ProductStory';
+import { useCart } from '../contexts/CartContext';
 
 interface ProductData {
   id: string;
   name: string;
   price: number;
+  basePrice?: number;
   description: string;
   images: string[];
   category: string;
   sizes?: string[];
+  status?: string;
+  isOneOfAKind?: boolean;
+  variants?: ProductVariant[];
+  translations?: { it: { name?: string; description?: string; detailsAndCare?: string; shippingAndReturns?: string }; en: { name?: string; description?: string; detailsAndCare?: string; shippingAndReturns?: string } };
+  story?: Story;
   detailsAndCare?: string;
   shippingAndReturns?: string;
 }
@@ -79,9 +90,11 @@ export default function Product() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { toggleFavorite, isFavorite } = useFavorites();
+  const { addItem } = useCart();
+  const { t, i18n } = useTranslation();
   const [product, setProduct] = useState<ProductData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const [openAccordion, setOpenAccordion] = useState<string | null>('details');
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
@@ -104,7 +117,12 @@ export default function Product() {
         const docRef = doc(db, 'products', id);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-          setProduct({ id: docSnap.id, ...docSnap.data() } as ProductData);
+          const data = { id: docSnap.id, ...docSnap.data() } as ProductData;
+          setProduct(data);
+          if (data.variants && data.variants.length > 0) {
+            const first = data.variants.find(v => v.stock - (v.reserved ?? 0) > 0) ?? data.variants[0];
+            setSelectedVariantId(first.id);
+          }
         }
       } catch (error) {
         console.error("Error fetching product:", error);
@@ -329,12 +347,23 @@ export default function Product() {
   const heroImage = displayImages[0];
   const galleryImages = displayImages.slice(1);
 
-  const availableSizes = displayProduct.sizes || ['XS', 'S', 'M', 'L', 'XL'];
-  const detailsAndCareItems = (displayProduct.detailsAndCare || '')
+  const displayVariants: ProductVariant[] = displayProduct.variants && displayProduct.variants.length > 0
+    ? displayProduct.variants
+    : (displayProduct.sizes || ['One Size']).map((s, i) => ({ id: `legacy-${i}`, size: s, stock: 1, reserved: 0 }));
+
+  const selectedVariant = displayVariants.find(v => v.id === selectedVariantId);
+  const isSoldOut = displayProduct.status === 'sold_out' || (selectedVariant ? selectedVariant.stock - (selectedVariant.reserved ?? 0) <= 0 : false);
+
+  const displayName = getProductText(displayProduct, i18n.language, 'name') || displayProduct.name;
+  const displayDescription = getProductText(displayProduct, i18n.language, 'description') || displayProduct.description;
+  const displayDetails = getProductText(displayProduct, i18n.language, 'detailsAndCare') || displayProduct.detailsAndCare || '';
+  const displayShipping = getProductText(displayProduct, i18n.language, 'shippingAndReturns') || displayProduct.shippingAndReturns || '';
+
+  const detailsAndCareItems = (displayDetails)
     .split('\n')
     .map((item) => item.trim())
     .filter(Boolean);
-  const shippingAndReturnsText = displayProduct.shippingAndReturns || '';
+  const shippingAndReturnsText = displayShipping;
   const myTryOnsForProduct = myTryOns.filter((item) => item.productId === displayProduct.id);
   const featuredTryOns = myTryOnsForProduct.length > 0 ? myTryOnsForProduct : myTryOns;
 
@@ -399,8 +428,8 @@ export default function Product() {
         <div className="w-full md:w-1/2 md:sticky md:top-24 h-fit">
           <div className="mb-8">
             <p className="text-xs uppercase tracking-widest text-gray-500 mb-2">{displayProduct.category}</p>
-            <h1 className="text-3xl md:text-4xl font-serif mb-4">{displayProduct.name}</h1>
-            <p className="text-xl mb-4">€{displayProduct.price.toFixed(2)}</p>
+            <h1 className="text-3xl md:text-4xl font-serif mb-4">{displayName}</h1>
+            <p className="text-xl mb-4">€{(selectedVariant?.priceOverride ? selectedVariant.priceOverride / 100 : displayProduct.price).toFixed(2)}</p>
             <div className="flex items-center space-x-1 text-sm mb-6">
               <div className="flex text-black">
                 <Star className="w-4 h-4 fill-current" />
@@ -412,37 +441,40 @@ export default function Product() {
               <span className="text-gray-500 ml-2">(42 Reviews)</span>
             </div>
             <p className="text-gray-600 text-sm leading-relaxed">
-              {displayProduct.description}
+              {displayDescription}
             </p>
           </div>
 
-          {/* Size Selector */}
-          <div className="mb-8">
-            <div className="flex justify-between items-center mb-4">
-              <span className="text-sm font-medium uppercase tracking-wider">Size</span>
-              <button className="text-xs text-gray-500 underline hover:text-black transition-colors">Size Guide</button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {availableSizes.map((size: string) => (
-                <button
-                  key={size}
-                  onClick={() => setSelectedSize(size)}
-                  className={`py-3 px-6 text-sm transition-colors border ${
-                    selectedSize === size 
-                      ? 'border-brand-black bg-brand-black text-white' 
-                      : 'border-gray-200 hover:border-brand-black text-brand-black'
-                  }`}
-                >
-                  {size}
-                </button>
-              ))}
-            </div>
-          </div>
+          <VariantSelector
+            variants={displayVariants}
+            selectedId={selectedVariantId}
+            onChange={setSelectedVariantId}
+            isOneOfAKind={displayProduct.isOneOfAKind}
+          />
 
           {/* Add to Cart & VTO */}
           <div className="space-y-3 mb-8">
-            <button className="w-full bg-brand-black text-white py-4 uppercase tracking-widest text-sm font-medium hover:bg-gray-900 transition-colors">
-              Add to Cart
+            <button
+              disabled={isSoldOut}
+              onClick={() => {
+                if (isSoldOut || !selectedVariant) return;
+                const priceSnapshot = selectedVariant.priceOverride
+                  ?? displayProduct.basePrice
+                  ?? Math.round(displayProduct.price * 100);
+                void addItem({
+                  productId: displayProduct.id,
+                  variantId: selectedVariant.id,
+                  qty: 1,
+                  priceSnapshot,
+                  nameSnapshot: displayName,
+                  imageSnapshot: heroImage || '',
+                  ...(selectedVariant.size ? { sizeLabel: selectedVariant.size } : {}),
+                  ...(selectedVariant.color ? { colorLabel: selectedVariant.color } : {}),
+                });
+              }}
+              className="w-full bg-brand-black text-white py-4 uppercase tracking-widest text-sm font-medium hover:bg-gray-900 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {isSoldOut ? t('product.soldOut') : t('product.addToCart')}
             </button>
             
             <button 
@@ -478,7 +510,7 @@ export default function Product() {
                 }`}
               >
                 <Heart className={`w-4 h-4 ${isFavorite(displayProduct.id) ? 'fill-red-500' : ''}`} />
-                <span>{isFavorite(displayProduct.id) ? 'Rimuovi dai Preferiti' : 'Aggiungi ai Preferiti'}</span>
+                <span>{isFavorite(displayProduct.id) ? t('favorites.remove') : t('nav.favorites')}</span>
               </button>
             )}
           </div>
@@ -588,7 +620,7 @@ export default function Product() {
                 onClick={() => toggleAccordion('details')}
                 className="w-full py-4 flex justify-between items-center text-sm uppercase tracking-wider font-medium"
               >
-                Details & Care
+                {t('product.details')}
                 {openAccordion === 'details' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </button>
               {openAccordion === 'details' && (
@@ -622,7 +654,7 @@ export default function Product() {
                 onClick={() => toggleAccordion('shipping')}
                 className="w-full py-4 flex justify-between items-center text-sm uppercase tracking-wider font-medium"
               >
-                Shipping & Returns
+                {t('product.shipping')}
                 {openAccordion === 'shipping' ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </button>
               {openAccordion === 'shipping' && (
@@ -646,6 +678,9 @@ export default function Product() {
 
         </div>
       </div>
+
+      {/* Product Story */}
+      {displayProduct.story && <ProductStory story={displayProduct.story} />}
 
       {/* VTO Modal */}
       <AnimatePresence>

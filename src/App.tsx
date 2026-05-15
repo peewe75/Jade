@@ -6,6 +6,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { FavoritesProvider } from './contexts/FavoritesContext';
+import { CartProvider } from './contexts/CartContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ScrollToTop from './components/ScrollToTop';
@@ -20,11 +21,21 @@ import Shop from './pages/Shop';
 import Admin from './pages/Admin';
 import CRM from './pages/CRM';
 import Inventory from './pages/Inventory';
+import AdminOrders from './pages/AdminOrders';
+import AdminOrderDetail from './pages/AdminOrderDetail';
+import Account from './pages/Account';
+import CookieBanner from './components/CookieBanner';
+import Cart from './pages/Cart';
+import Checkout from './pages/Checkout';
+import CheckoutSuccess from './pages/CheckoutSuccess';
+import CheckoutCancel from './pages/CheckoutCancel';
+import CheckoutPending from './pages/CheckoutPending';
 
 export default function App() {
   return (
     <AuthProvider>
       <FavoritesProvider>
+        <CartProvider>
         <Router>
           <ScrollToTop />
           <div className="min-h-screen flex flex-col">
@@ -47,10 +58,20 @@ export default function App() {
               <Route path="/admin" element={<Admin />} />
               <Route path="/admin/crm" element={<CRM />} />
               <Route path="/admin/inventory" element={<Inventory />} />
+              <Route path="/admin/orders" element={<AdminOrders />} />
+              <Route path="/admin/orders/:id" element={<AdminOrderDetail />} />
+              <Route path="/account" element={<Account />} />
+              <Route path="/cart" element={<Cart />} />
+              <Route path="/checkout" element={<Checkout />} />
+              <Route path="/checkout/success" element={<CheckoutSuccess />} />
+              <Route path="/checkout/cancel" element={<CheckoutCancel />} />
+              <Route path="/checkout/pending" element={<CheckoutPending />} />
             </Routes>
             <Footer />
+            <CookieBanner />
           </div>
         </Router>
+        </CartProvider>
       </FavoritesProvider>
     </AuthProvider>
   );

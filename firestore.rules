@@ -1,33 +1,91 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /user_favorites/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email in [
+        "mmalinverno76@gmail.com",
+        "mmalinverno@gmail.com",
+        "peewe75@gmail.com",
+        "avv.sapone@hotmail.it"
+      ];
     }
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // ── Products & categories (public read, admin write) ─────────────────────
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ── User data ─────────────────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+    match /user_favorites/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // ── Carts (owner only; guest carts live in localStorage) ─────────────────
+    match /carts/{cartId} {
+      allow read, write: if isOwner(cartId);
+    }
+
+    // ── Orders (owner read; all writes via Cloud Functions admin SDK) ─────────
+    match /orders/{orderId} {
+      allow read: if isAdmin() ||
+        (request.auth != null && resource.data.userId == request.auth.uid);
+      allow create, update, delete: if false;
+    }
+
+    // ── Shipping quotes (admin read; client reads shipping info from order doc) ─
+    match /shipping_quotes/{orderId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // ── Payments / holds / notification_log (admin read only) ────────────────
+    match /payments/{eventId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+    match /holds/{holdId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+    match /notification_log/{logId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // ── Config (admin SDK reads; no client access needed) ────────────────────
+    match /config/{docId} {
+      allow read, write: if isAdmin();
+    }
+
+    // ── VTO jobs (owner only) ─────────────────────────────────────────────────
     match /vto_jobs/{jobId} {
-      // Leggibile solo dal proprietario; il client crea il job con il proprio userId;
-      // la Netlify background function aggiorna il doc usando l'ID token dello stesso utente.
       allow read: if request.auth != null && request.auth.uid == resource.data.userId;
       allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
       allow update: if request.auth != null && request.auth.uid == resource.data.userId;
       allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
     }
-    match /products/{productId} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.token.email in ["mmalinverno76@gmail.com", "mmalinverno@gmail.com", "peewe75@gmail.com", "avv.sapone@hotmail.it"];
-    }
-    match /categories/{categoryId} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.token.email in ["mmalinverno76@gmail.com", "mmalinverno@gmail.com", "peewe75@gmail.com", "avv.sapone@hotmail.it"];
-    }
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
+
+    // ── CRM clients (admin only) ──────────────────────────────────────────────
     match /clients/{clientId} {
-      allow read, write: if request.auth != null && request.auth.token.email in ["mmalinverno76@gmail.com", "mmalinverno@gmail.com", "peewe75@gmail.com", "avv.sapone@hotmail.it"];
+      allow read, write: if isAdmin();
     }
+
+    // ── Admin catch-all (admin can read/write anything not explicitly covered) ─
     match /{document=**} {
-      allow read, write: if request.auth != null && request.auth.token.email in ["mmalinverno76@gmail.com", "mmalinverno@gmail.com", "peewe75@gmail.com", "avv.sapone@hotmail.it"];
+      allow read, write: if isAdmin();
     }
   }
 }

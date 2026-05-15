@@ -41,3 +41,9 @@ coverage/
 .zencoder/
 skills/
 skills-lock.json
+
+# Local browser/test artifacts
+.playwright-mcp/
+
+# Local secret notes
+API Openrouter.txt

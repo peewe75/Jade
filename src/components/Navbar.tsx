@@ -1,9 +1,11 @@
-import { ShoppingBag, Menu, X, Search, User, Heart, LayoutGrid, RefreshCw, Camera } from 'lucide-react';
+import { Menu, X, Search, User, Heart, ShoppingBag, LayoutGrid, RefreshCw, Camera, Package } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useFavorites } from '../contexts/FavoritesContext';
+import { useCart } from '../contexts/CartContext';
+import { useTranslation } from 'react-i18next';
 
 export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -13,7 +15,14 @@ export default function Navbar() {
   const location = useLocation();
   const { user, logout } = useAuth();
   const { favorites, toggleFavorite } = useFavorites();
+  const { count: cartCount } = useCart();
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
+  const { t, i18n } = useTranslation();
+
+  const toggleLanguage = () => {
+    const next = i18n.language.startsWith('it') ? 'en' : 'it';
+    void i18n.changeLanguage(next);
+  };
   
   // Force solid background if not on home page
   const isHome = location.pathname === '/';
@@ -60,8 +69,8 @@ export default function Navbar() {
               <Menu className="w-5 h-5" />
             </button>
             <div className="hidden md:flex space-x-6 text-sm uppercase tracking-widest font-medium">
-              <Link to="/shop" className="hover:opacity-70 transition-opacity">Shop</Link>
-              <Link to="/about" className="hover:opacity-70 transition-opacity">The Brand</Link>
+              <Link to="/shop" className="hover:opacity-70 transition-opacity">{t('nav.shop')}</Link>
+              <Link to="/about" className="hover:opacity-70 transition-opacity">{t('nav.brand')}</Link>
             </div>
             <button className="p-2 hover:opacity-70 transition-opacity hidden sm:block">
               <Search className="w-5 h-5" />
@@ -77,7 +86,26 @@ export default function Navbar() {
 
           {/* Right: Account & Search */}
           <div className="flex items-center justify-end space-x-4 flex-1">
-            <button 
+            <button
+              onClick={toggleLanguage}
+              className="hidden sm:block text-[10px] uppercase tracking-widest font-medium hover:opacity-70 transition-opacity border border-current px-2 py-0.5"
+              aria-label="Cambia lingua"
+            >
+              {i18n.language.startsWith('it') ? 'EN' : 'IT'}
+            </button>
+            <Link
+              to="/cart"
+              className="p-2 hover:opacity-70 transition-opacity relative"
+              aria-label="Carrello"
+            >
+              <ShoppingBag className="w-5 h-5" />
+              {cartCount > 0 && (
+                <span className="absolute top-1 right-1 bg-brand-black text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                  {cartCount > 9 ? '9+' : cartCount}
+                </span>
+              )}
+            </Link>
+            <button
               onClick={() => setIsFavoritesOpen(true)}
               className="p-2 hover:opacity-70 transition-opacity relative"
             >
@@ -109,28 +137,42 @@ export default function Navbar() {
                     <p className="text-sm font-medium text-brand-black truncate">{user.displayName || 'User'}</p>
                     <p className="text-xs text-gray-500 truncate">{user.email}</p>
                   </div>
-                  <Link 
+                  <Link
+                    to="/account"
+                    onClick={() => setIsAccountMenuOpen(false)}
+                    className="block w-full text-left px-4 py-3 text-sm uppercase tracking-widest font-medium hover:bg-gray-50 text-brand-black transition-colors border-b border-gray-100"
+                  >
+                    {t('nav.account')}
+                  </Link>
+                  <Link
+                    to="/account?tab=orders"
+                    onClick={() => setIsAccountMenuOpen(false)}
+                    className="block w-full text-left px-4 py-3 text-sm uppercase tracking-widest font-medium hover:bg-gray-50 text-brand-black transition-colors border-b border-gray-100"
+                  >
+                    {t('nav.orders')}
+                  </Link>
+                  <Link
                     to="/my-try-ons"
                     onClick={() => setIsAccountMenuOpen(false)}
                     className="block w-full text-left px-4 py-3 text-sm uppercase tracking-widest font-medium hover:bg-gray-50 text-brand-black transition-colors border-b border-gray-100"
                   >
-                    My Try-Ons
+                    {t('nav.myTryOns')}
                   </Link>
-                  <Link 
+                  <Link
                     to="/admin"
                     onClick={() => setIsAccountMenuOpen(false)}
                     className="block w-full text-left px-4 py-3 text-sm uppercase tracking-widest font-medium hover:bg-gray-50 text-brand-black transition-colors border-b border-gray-100"
                   >
-                    Dashboard
+                    {t('nav.dashboard')}
                   </Link>
-                  <button 
+                  <button
                     onClick={() => {
                       setIsAccountMenuOpen(false);
                       void logout();
                     }}
                     className="w-full text-left px-4 py-3 text-sm uppercase tracking-widest font-medium hover:bg-gray-50 text-brand-black transition-colors"
                   >
-                    Sign Out
+                    {t('nav.signOut')}
                   </button>
                 </div>
               </div>
@@ -163,7 +205,7 @@ export default function Navbar() {
               className="fixed top-0 left-0 bottom-0 w-[80%] max-w-sm bg-white z-[70] shadow-2xl flex flex-col text-brand-black"
             >
               <div className="p-6 flex justify-between items-center border-b border-gray-100">
-                <span className="font-serif text-xl tracking-widest uppercase font-semibold">Menu</span>
+                <span className="font-serif text-xl tracking-widest uppercase font-semibold">{t('nav.menu')}</span>
                 <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 -mr-2">
                   <X className="w-6 h-6" />
                 </button>
@@ -171,28 +213,28 @@ export default function Navbar() {
               
               <div className="flex-grow overflow-y-auto py-8 px-6 space-y-8">
                 <div className="space-y-6">
-                  <Link 
-                    to="/shop" 
+                  <Link
+                    to="/shop"
                     onClick={() => setIsMobileMenuOpen(false)}
                     className="block text-2xl font-serif tracking-wide hover:pl-2 transition-all"
                   >
-                    Shop
+                    {t('nav.shop')}
                   </Link>
-                  <Link 
-                    to="/about" 
+                  <Link
+                    to="/about"
                     onClick={() => setIsMobileMenuOpen(false)}
                     className="block text-2xl font-serif tracking-wide hover:pl-2 transition-all"
                   >
-                    The Brand
+                    {t('nav.brand')}
                   </Link>
-                  <button 
+                  <button
                     onClick={() => {
                       setIsMobileMenuOpen(false);
                       setIsFavoritesOpen(true);
                     }}
                     className="flex items-center space-x-3 text-2xl font-serif tracking-wide hover:pl-2 transition-all"
                   >
-                    <span>My Favorites</span>
+                    <span>{t('nav.favorites')}</span>
                     {favorites.length > 0 && <span className="text-sm font-sans bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center">{favorites.length}</span>}
                   </button>
                 </div>
@@ -200,23 +242,39 @@ export default function Navbar() {
                 <div className="pt-8 border-t border-gray-100 space-y-4">
                   {user ? (
                     <>
-                      <Link 
-                        to="/my-try-ons" 
+                      <Link
+                        to="/account"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="flex items-center space-x-3 text-lg"
+                      >
+                        <User className="w-5 h-5" />
+                        <span>{t('nav.account')}</span>
+                      </Link>
+                      <Link
+                        to="/account?tab=orders"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="flex items-center space-x-3 text-lg"
+                      >
+                        <Package className="w-5 h-5" />
+                        <span>{t('nav.orders')}</span>
+                      </Link>
+                      <Link
+                        to="/my-try-ons"
                         onClick={() => setIsMobileMenuOpen(false)}
                         className="flex items-center space-x-3 text-lg"
                       >
                         <Camera className="w-5 h-5" />
-                        <span>My Try-Ons</span>
+                        <span>{t('nav.myTryOns')}</span>
                       </Link>
-                      <Link 
-                        to="/admin" 
+                      <Link
+                        to="/admin"
                         onClick={() => setIsMobileMenuOpen(false)}
                         className="flex items-center space-x-3 text-lg"
                       >
                         <LayoutGrid className="w-5 h-5" />
-                        <span>Dashboard</span>
+                        <span>{t('nav.dashboard')}</span>
                       </Link>
-                      <button 
+                      <button
                         onClick={() => {
                           setIsMobileMenuOpen(false);
                           void logout();
@@ -224,22 +282,30 @@ export default function Navbar() {
                         className="flex items-center space-x-3 text-lg text-red-500"
                       >
                         <RefreshCw className="w-5 h-5" />
-                        <span>Sign Out</span>
+                        <span>{t('nav.signOut')}</span>
                       </button>
                     </>
                   ) : (
-                    <Link 
-                      to="/login" 
+                    <Link
+                      to="/login"
                       onClick={() => setIsMobileMenuOpen(false)}
                       className="flex items-center space-x-3 text-lg"
                     >
                       <User className="w-5 h-5" />
-                      <span>Sign In</span>
+                      <span>{t('nav.signIn')}</span>
                     </Link>
                   )}
                   <button className="flex items-center space-x-3 text-lg">
                     <Search className="w-5 h-5" />
-                    <span>Search</span>
+                    <span>{t('nav.search')}</span>
+                  </button>
+                  <button
+                    onClick={toggleLanguage}
+                    className="flex items-center space-x-3 text-lg"
+                  >
+                    <span className="text-sm border border-current px-2 py-0.5 uppercase tracking-widest">
+                      {i18n.language.startsWith('it') ? 'EN' : 'IT'}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -276,7 +342,7 @@ export default function Navbar() {
               <div className="p-8 flex justify-between items-center border-b border-gray-100">
                 <div className="flex items-center space-x-2">
                   <Heart className="w-5 h-5 text-red-500 fill-red-500" />
-                  <span className="font-serif text-xl tracking-widest uppercase font-semibold">Favorites</span>
+                  <span className="font-serif text-xl tracking-widest uppercase font-semibold">{t('favorites.title')}</span>
                 </div>
                 <button onClick={() => setIsFavoritesOpen(false)} className="p-2 -mr-2">
                   <X className="w-6 h-6" />
@@ -288,17 +354,17 @@ export default function Navbar() {
                   <div className="h-full flex flex-col items-center justify-center text-center space-y-4">
                     <Heart className="w-12 h-12 text-gray-100" />
                     <div>
-                      <h3 className="text-lg font-medium">Your wishlist is empty</h3>
-                      <p className="text-sm text-gray-500 mt-2">Save your favorite items to keep track of what you love.</p>
+                      <h3 className="text-lg font-medium">{t('favorites.empty')}</h3>
+                      <p className="text-sm text-gray-500 mt-2">{t('favorites.emptyDesc')}</p>
                     </div>
-                    <button 
+                    <button
                       onClick={() => {
                         setIsFavoritesOpen(false);
                         location.pathname !== '/shop' && window.scrollTo(0, 0);
                       }}
                       className="mt-4 px-8 py-3 bg-brand-black text-white text-xs uppercase tracking-widest font-medium hover:opacity-80 transition-opacity"
                     >
-                      Explore Collection
+                      {t('favorites.exploreCta')}
                     </button>
                   </div>
                 ) : (
@@ -331,7 +397,7 @@ export default function Navbar() {
                             onClick={() => toggleFavorite(product)}
                             className="text-[10px] uppercase tracking-widest text-gray-400 hover:text-red-500 transition-colors w-fit"
                           >
-                            Remove
+                            {t('favorites.remove')}
                           </button>
                         </div>
                       </div>
@@ -342,12 +408,12 @@ export default function Navbar() {
 
               {favorites.length > 0 && (
                 <div className="p-6 border-t border-gray-100">
-                  <Link 
-                    to="/shop" 
+                  <Link
+                    to="/shop"
                     onClick={() => setIsFavoritesOpen(false)}
                     className="block w-full text-center py-4 bg-brand-black text-white text-xs uppercase tracking-widest font-medium hover:opacity-90 transition-opacity"
                   >
-                    Continue Shopping
+                    {t('favorites.continueShopping')}
                   </Link>
                 </div>
               )}

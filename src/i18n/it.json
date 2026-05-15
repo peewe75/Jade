@@ -1,0 +1,132 @@
+{
+  "nav": {
+    "shop": "Shop",
+    "brand": "The Brand",
+    "favorites": "Preferiti",
+    "myTryOns": "Le Mie Prove",
+    "dashboard": "Dashboard",
+    "account": "Il Mio Account",
+    "orders": "I Miei Ordini",
+    "signIn": "Accedi",
+    "signOut": "Esci",
+    "search": "Cerca",
+    "menu": "Menu"
+  },
+  "shop": {
+    "title": "Shop",
+    "titleAll": "Tutto",
+    "subtitle": "Eleganza in ogni punto",
+    "collections": "Collezioni",
+    "all": "Tutto",
+    "quickAdd": "Aggiungi",
+    "noProducts": "Nessun prodotto trovato",
+    "noProductsAll": "Stiamo aggiornando la collezione. Torna presto per le novità!",
+    "noProductsCategory": "Nessun prodotto in questa categoria al momento.",
+    "viewAll": "Vedi Tutto",
+    "viewAllCollection": "Tutta la Collezione"
+  },
+  "home": {
+    "trendingNow": "In Evidenza",
+    "trendingSubtitle": "I pezzi più amati",
+    "viewAll": "Vedi Tutto"
+  },
+  "product": {
+    "addToCart": "Aggiungi al Carrello",
+    "soldOut": "Esaurito",
+    "reserved": "Riservato",
+    "available": "Disponibile",
+    "oneAvailable": "1 disponibile",
+    "selectSize": "Seleziona taglia",
+    "selectColor": "Seleziona colore",
+    "details": "Dettagli e cura",
+    "shipping": "Spedizione e resi",
+    "story": "La Storia",
+    "craft": "La Lavorazione",
+    "artisan": "L'Artigiano",
+    "materials": "I Materiali"
+  },
+  "favorites": {
+    "title": "Preferiti",
+    "empty": "La tua wishlist è vuota",
+    "emptyDesc": "Salva i tuoi pezzi preferiti per non perderli.",
+    "remove": "Rimuovi",
+    "exploreCta": "Esplora la Collezione",
+    "continueShopping": "Continua lo Shopping"
+  },
+  "checkout": {
+    "title": "Checkout",
+    "step1": "Indirizzo",
+    "step2": "Pagamento",
+    "step3": "Riepilogo",
+    "shippingInfo": "Indirizzo di spedizione",
+    "paymentMethod": "Metodo di pagamento",
+    "review": "Riepilogo ordine",
+    "firstName": "Nome",
+    "lastName": "Cognome",
+    "email": "Email",
+    "address": "Indirizzo",
+    "city": "Città",
+    "postalCode": "CAP",
+    "country": "Paese",
+    "stripe": "Carta di Credito / Debito",
+    "bankTransfer": "Bonifico Bancario",
+    "crypto": "Criptovaluta",
+    "cryptoSubtitle": "Conferma in ~10 min",
+    "comingSoon": "Prossimamente",
+    "confirm": "Conferma e Paga",
+    "back": "Indietro",
+    "next": "Continua",
+    "processing": "Elaborazione in corso...",
+    "orderSummary": "Il tuo ordine",
+    "shippingQuoted": "La spedizione sarà quotata dopo conferma dell'ordine.",
+    "total": "Totale",
+    "error": "Si è verificato un errore. Riprova.",
+    "success": {
+      "title": "Ordine confermato",
+      "message": "Grazie! Il tuo ordine è stato ricevuto e sarà elaborato a breve.",
+      "orderNumber": "Numero ordine",
+      "continueShopping": "Continua lo shopping"
+    },
+    "cancel": {
+      "title": "Pagamento annullato",
+      "message": "Nessun addebito è stato effettuato. Il tuo carrello è ancora disponibile.",
+      "backToCart": "Torna al carrello"
+    },
+    "pending": {
+      "title": "In attesa di pagamento",
+      "bankTitle": "Istruzioni per il bonifico",
+      "beneficiary": "Beneficiario",
+      "iban": "IBAN",
+      "bic": "BIC/SWIFT",
+      "causale": "Causale (obbligatoria)",
+      "amount": "Importo",
+      "instructions": "Effettua il bonifico bancario con i dati indicati. L'ordine sarà confermato entro 1–3 giorni lavorativi dalla ricezione del pagamento.",
+      "importantNote": "Inserisci il numero d'ordine nella causale. Senza causale non possiamo abbinare il pagamento.",
+      "orderNumber": "Numero ordine",
+      "awaiting": "In attesa di bonifico",
+      "awaitingCrypto": "In attesa di pagamento crypto",
+      "paid": "Pagamento ricevuto — ordine confermato",
+      "continueShopping": "Continua lo shopping",
+      "cryptoTitle": "Pagamento in criptovaluta",
+      "cryptoInstructions": "Clicca il pulsante per completare il pagamento sul portale NOWPayments. La conferma arriva entro ~10 minuti dalla transazione blockchain.",
+      "cryptoPayButton": "Paga con crypto",
+      "cryptoStatus": "Stato transazione"
+    }
+  },
+  "cart": {
+    "title": "Il Carrello",
+    "empty": "Il tuo carrello è vuoto",
+    "emptyDesc": "Esplora la collezione e aggiungi i tuoi pezzi preferiti.",
+    "exploreCta": "Scopri la Collezione",
+    "checkout": "Procedi all'Ordine",
+    "subtotal": "Subtotale",
+    "shippingNote": "Spedizione calcolata al momento dell'ordine",
+    "holdNotice": "I pezzi unici sono riservati per 15 minuti durante il checkout.",
+    "continueShopping": "Continua lo shopping",
+    "remove": "Rimuovi"
+  },
+  "common": {
+    "loading": "Caricamento...",
+    "language": "IT"
+  }
+}

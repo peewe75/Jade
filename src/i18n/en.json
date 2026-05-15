@@ -1,0 +1,132 @@
+{
+  "nav": {
+    "shop": "Shop",
+    "brand": "The Brand",
+    "favorites": "Favorites",
+    "myTryOns": "My Try-Ons",
+    "dashboard": "Dashboard",
+    "account": "My Account",
+    "orders": "My Orders",
+    "signIn": "Sign In",
+    "signOut": "Sign Out",
+    "search": "Search",
+    "menu": "Menu"
+  },
+  "shop": {
+    "title": "Shop",
+    "titleAll": "All",
+    "subtitle": "Elegance in every stitch",
+    "collections": "Collections",
+    "all": "All",
+    "quickAdd": "Quick Add",
+    "noProducts": "No products found",
+    "noProductsAll": "We are currently updating our collection. Check back soon for new arrivals!",
+    "noProductsCategory": "We don't have any items in this category at the moment.",
+    "viewAll": "View All",
+    "viewAllCollection": "View All Collection"
+  },
+  "home": {
+    "trendingNow": "Trending Now",
+    "trendingSubtitle": "As seen on TikTok & Instagram",
+    "viewAll": "View All"
+  },
+  "product": {
+    "addToCart": "Add to Cart",
+    "soldOut": "Sold Out",
+    "reserved": "Reserved",
+    "available": "Available",
+    "oneAvailable": "1 available",
+    "selectSize": "Select size",
+    "selectColor": "Select color",
+    "details": "Details & Care",
+    "shipping": "Shipping & Returns",
+    "story": "The Story",
+    "craft": "The Craft",
+    "artisan": "The Artisan",
+    "materials": "The Materials"
+  },
+  "favorites": {
+    "title": "Favorites",
+    "empty": "Your wishlist is empty",
+    "emptyDesc": "Save your favorite items to keep track of what you love.",
+    "remove": "Remove",
+    "exploreCta": "Explore Collection",
+    "continueShopping": "Continue Shopping"
+  },
+  "checkout": {
+    "title": "Checkout",
+    "step1": "Address",
+    "step2": "Payment",
+    "step3": "Review",
+    "shippingInfo": "Shipping address",
+    "paymentMethod": "Payment method",
+    "review": "Order review",
+    "firstName": "First name",
+    "lastName": "Last name",
+    "email": "Email",
+    "address": "Address",
+    "city": "City",
+    "postalCode": "Postal code",
+    "country": "Country",
+    "stripe": "Credit / Debit Card",
+    "bankTransfer": "Bank Transfer",
+    "crypto": "Cryptocurrency",
+    "cryptoSubtitle": "Confirmation in ~10 min",
+    "comingSoon": "Coming soon",
+    "confirm": "Confirm & Pay",
+    "back": "Back",
+    "next": "Continue",
+    "processing": "Processing...",
+    "orderSummary": "Your order",
+    "shippingQuoted": "Shipping will be quoted after order confirmation.",
+    "total": "Total",
+    "error": "An error occurred. Please try again.",
+    "success": {
+      "title": "Order confirmed",
+      "message": "Thank you! Your order has been received and will be processed shortly.",
+      "orderNumber": "Order number",
+      "continueShopping": "Continue shopping"
+    },
+    "cancel": {
+      "title": "Payment cancelled",
+      "message": "No charge has been made. Your cart is still available.",
+      "backToCart": "Back to cart"
+    },
+    "pending": {
+      "title": "Awaiting payment",
+      "bankTitle": "Bank transfer instructions",
+      "beneficiary": "Beneficiary",
+      "iban": "IBAN",
+      "bic": "BIC/SWIFT",
+      "causale": "Reference (mandatory)",
+      "amount": "Amount",
+      "instructions": "Complete the bank transfer with the details below. Your order will be confirmed within 1–3 business days of receiving your payment.",
+      "importantNote": "Include the order number in the payment reference. Without a reference we cannot match your payment.",
+      "orderNumber": "Order number",
+      "awaiting": "Awaiting bank transfer",
+      "awaitingCrypto": "Awaiting crypto payment",
+      "paid": "Payment received — order confirmed",
+      "continueShopping": "Continue shopping",
+      "cryptoTitle": "Cryptocurrency payment",
+      "cryptoInstructions": "Click the button to complete payment on the NOWPayments portal. Confirmation arrives within ~10 minutes of the blockchain transaction.",
+      "cryptoPayButton": "Pay with crypto",
+      "cryptoStatus": "Transaction status"
+    }
+  },
+  "cart": {
+    "title": "Cart",
+    "empty": "Your cart is empty",
+    "emptyDesc": "Browse our collection and add your favourite pieces.",
+    "exploreCta": "Explore the Collection",
+    "checkout": "Proceed to Order",
+    "subtotal": "Subtotal",
+    "shippingNote": "Shipping calculated at time of order",
+    "holdNotice": "One-of-a-kind pieces are reserved for 15 minutes during checkout.",
+    "continueShopping": "Continue shopping",
+    "remove": "Remove"
+  },
+  "common": {
+    "loading": "Loading...",
+    "language": "EN"
+  }
+}

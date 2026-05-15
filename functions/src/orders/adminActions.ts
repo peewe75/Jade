@@ -1,0 +1,298 @@
+import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { defineSecret, defineString } from 'firebase-functions/params';
+import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
+import Stripe from 'stripe';
+import { Resend } from 'resend';
+
+const stripeSecret = defineSecret('STRIPE_SECRET');
+const resendKey = defineSecret('RESEND_API_KEY');
+const siteUrl = defineString('SITE_URL');
+
+const ADMIN_EMAILS = [
+  'mmalinverno76@gmail.com',
+  'peewe75@gmail.com',
+  'mmalinverno@gmail.com',
+  'avv.sapone@hotmail.it',
+];
+
+const REGION = 'europe-west1';
+const CORS_ORIGINS: (string | RegExp)[] = [
+  'https://theblondesconcept.netlify.app',
+  /localhost(:\d+)?$/,
+];
+
+function isAdmin(email: string | undefined): boolean {
+  return !!email && ADMIN_EMAILS.includes(email);
+}
+
+// ─── adminQuoteShipping ──────────────────────────────────────────────────────
+
+interface QuoteInput {
+  orderId: string;
+  courier: string;
+  costCents: number;   // 0 = free
+  eta: string;         // e.g. "3–5 giorni lavorativi"
+}
+
+interface QuoteOutput {
+  paymentLinkUrl: string | null;
+}
+
+export const adminQuoteShipping = onCall<QuoteInput, Promise<QuoteOutput>>(
+  {
+    region: REGION,
+    cors: CORS_ORIGINS,
+    secrets: [stripeSecret, resendKey],
+    enforceAppCheck: false,
+  },
+  async (request) => {
+    if (!isAdmin(request.auth?.token?.email)) {
+      throw new HttpsError('permission-denied', 'Admin only');
+    }
+
+    const { orderId, courier, costCents, eta } = request.data;
+    if (!orderId || !courier || !eta || costCents == null || costCents < 0) {
+      throw new HttpsError('invalid-argument', 'Parametri mancanti o non validi');
+    }
+
+    const db = getFirestore();
+    const orderRef = db.collection('orders').doc(orderId);
+    const orderSnap = await orderRef.get();
+    if (!orderSnap.exists) throw new HttpsError('not-found', 'Ordine non trovato');
+    const order = orderSnap.data()!;
+
+    const customerEmail: string =
+      order.shippingAddress?.email ?? order.guestEmail ?? '';
+    const orderNumber: string = order.orderNumber;
+    const firstName: string = order.shippingAddress?.firstName ?? 'Cliente';
+
+    let paymentLinkUrl: string | null = null;
+    let paymentLinkId: string | null = null;
+    const free = costCents === 0;
+
+    if (!free) {
+      const stripe = new Stripe(stripeSecret.value(), {
+        apiVersion: '2024-04-10' as any,
+      });
+
+      const price = await stripe.prices.create({
+        currency: 'eur',
+        unit_amount: costCents,
+        product_data: { name: `Spedizione ordine ${orderNumber}` },
+      });
+
+      const link = await stripe.paymentLinks.create({
+        line_items: [{ price: price.id, quantity: 1 }],
+        metadata: { orderId, type: 'shipping' },
+        after_completion: {
+          type: 'redirect',
+          redirect: { url: `${siteUrl.value()}/account?tab=orders` },
+        },
+      });
+
+      paymentLinkUrl = link.url;
+      paymentLinkId = link.id;
+    }
+
+    const newShippingStatus = free ? 'ready_to_ship' : 'awaiting_payment';
+    const timelineEvent = {
+      event: 'shipping_quoted',
+      note: `${courier} · €${(costCents / 100).toFixed(2)} · ${eta}`,
+      at: Timestamp.now(),
+    };
+
+    // Write quote doc + update order
+    const quoteRef = db.collection('shipping_quotes').doc(orderId);
+    await Promise.all([
+      quoteRef.set({
+        orderId,
+        orderNumber,
+        courier,
+        costCents,
+        eta,
+        paymentLinkUrl,
+        paymentLinkId,
+        status: free ? 'free' : 'quoted',
+        createdAt: FieldValue.serverTimestamp(),
+      }),
+      orderRef.update({
+        shippingStatus: newShippingStatus,
+        shippingCourier: courier,
+        shippingEta: eta,
+        ...(paymentLinkUrl ? { shippingPaymentLinkUrl: paymentLinkUrl } : {}),
+        'totals.shippingCost': costCents,
+        timeline: FieldValue.arrayUnion(timelineEvent),
+        updatedAt: FieldValue.serverTimestamp(),
+      }),
+    ]);
+
+    // Email to customer
+    if (customerEmail && resendKey.value()) {
+      try {
+        const resend = new Resend(resendKey.value());
+        const subject = `Informazioni di spedizione — ${orderNumber}`;
+        const html = free
+          ? buildFreeShippingEmail(firstName, orderNumber, courier, eta)
+          : buildShippingQuoteEmail(firstName, orderNumber, courier, costCents, eta, paymentLinkUrl!);
+        await resend.emails.send({
+          from: 'The Blondes Concept <ordini@theblondes.it>',
+          to: customerEmail,
+          subject,
+          html,
+        });
+      } catch (err) {
+        console.error('Resend shipping email error:', err);
+      }
+    }
+
+    return { paymentLinkUrl };
+  }
+);
+
+// ─── adminConfirmShipping ────────────────────────────────────────────────────
+
+interface ConfirmShippingInput {
+  orderId: string;
+  trackingNumber: string;
+  carrier?: string;
+}
+
+export const adminConfirmShipping = onCall<ConfirmShippingInput, Promise<{ success: boolean }>>(
+  {
+    region: REGION,
+    cors: CORS_ORIGINS,
+    secrets: [resendKey],
+    enforceAppCheck: false,
+  },
+  async (request) => {
+    if (!isAdmin(request.auth?.token?.email)) {
+      throw new HttpsError('permission-denied', 'Admin only');
+    }
+
+    const { orderId, trackingNumber, carrier } = request.data;
+    if (!orderId || !trackingNumber) {
+      throw new HttpsError('invalid-argument', 'orderId e trackingNumber obbligatori');
+    }
+
+    const db = getFirestore();
+    const orderRef = db.collection('orders').doc(orderId);
+    const orderSnap = await orderRef.get();
+    if (!orderSnap.exists) throw new HttpsError('not-found', 'Ordine non trovato');
+    const order = orderSnap.data()!;
+
+    const timelineEvent = {
+      event: 'shipped',
+      note: `${carrier ? carrier + ' · ' : ''}tracking: ${trackingNumber}`,
+      at: Timestamp.now(),
+    };
+
+    await orderRef.update({
+      shippingStatus: 'shipped',
+      shippingTracking: trackingNumber,
+      ...(carrier ? { shippingCourier: carrier } : {}),
+      timeline: FieldValue.arrayUnion(timelineEvent),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+
+    // Tracking email to customer
+    const customerEmail: string =
+      order.shippingAddress?.email ?? order.guestEmail ?? '';
+    const firstName: string = order.shippingAddress?.firstName ?? 'Cliente';
+    const orderNumber: string = order.orderNumber;
+
+    if (customerEmail && resendKey.value()) {
+      try {
+        const resend = new Resend(resendKey.value());
+        await resend.emails.send({
+          from: 'The Blondes Concept <ordini@theblondes.it>',
+          to: customerEmail,
+          subject: `Il tuo ordine ${orderNumber} è partito!`,
+          html: buildShippedEmail(firstName, orderNumber, trackingNumber, carrier),
+        });
+      } catch (err) {
+        console.error('Resend tracking email error:', err);
+      }
+    }
+
+    return { success: true };
+  }
+);
+
+// ─── Email templates ─────────────────────────────────────────────────────────
+
+function buildShippingQuoteEmail(
+  firstName: string,
+  orderNumber: string,
+  courier: string,
+  costCents: number,
+  eta: string,
+  paymentLinkUrl: string
+): string {
+  return `
+<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1a1a1a">
+  <h1 style="font-size:24px;font-weight:normal;margin-bottom:4px">The Blondes Concept</h1>
+  <div style="width:40px;height:1px;background:#1a1a1a;margin-bottom:32px"></div>
+  <p>Cara ${firstName},</p>
+  <p>Il tuo ordine <strong>${orderNumber}</strong> è pronto per la spedizione.</p>
+  <table style="width:100%;border-collapse:collapse;margin:24px 0;font-size:14px">
+    <tr><td style="padding:8px 0;color:#666;width:140px">Corriere</td><td>${courier}</td></tr>
+    <tr><td style="padding:8px 0;color:#666">Tempi stimati</td><td>${eta}</td></tr>
+    <tr><td style="padding:8px 0;color:#666">Costo spedizione</td><td><strong>€${(costCents / 100).toFixed(2)}</strong></td></tr>
+  </table>
+  <p>Per completare la spedizione, paga il costo tramite il link sicuro:</p>
+  <p style="margin:28px 0">
+    <a href="${paymentLinkUrl}" style="background:#1a1a1a;color:#fff;padding:14px 32px;text-decoration:none;text-transform:uppercase;letter-spacing:2px;font-size:11px;font-family:sans-serif">
+      Paga spedizione
+    </a>
+  </p>
+  <p style="font-size:12px;color:#999">Il link è sicuro e gestito da Stripe.</p>
+  <hr style="border:none;border-top:1px solid #eee;margin:32px 0">
+  <p style="font-size:12px;color:#999">The Blondes Concept · ordini@theblondes.it</p>
+</div>`;
+}
+
+function buildFreeShippingEmail(
+  firstName: string,
+  orderNumber: string,
+  courier: string,
+  eta: string
+): string {
+  return `
+<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1a1a1a">
+  <h1 style="font-size:24px;font-weight:normal;margin-bottom:4px">The Blondes Concept</h1>
+  <div style="width:40px;height:1px;background:#1a1a1a;margin-bottom:32px"></div>
+  <p>Cara ${firstName},</p>
+  <p>Ottima notizia! Il tuo ordine <strong>${orderNumber}</strong> verrà spedito gratuitamente.</p>
+  <table style="width:100%;border-collapse:collapse;margin:24px 0;font-size:14px">
+    <tr><td style="padding:8px 0;color:#666;width:140px">Corriere</td><td>${courier}</td></tr>
+    <tr><td style="padding:8px 0;color:#666">Tempi stimati</td><td>${eta}</td></tr>
+    <tr><td style="padding:8px 0;color:#666">Costo spedizione</td><td><strong>Gratuita</strong></td></tr>
+  </table>
+  <p>Riceverai un'email con il numero di tracking non appena il pacco sarà affidato al corriere.</p>
+  <hr style="border:none;border-top:1px solid #eee;margin:32px 0">
+  <p style="font-size:12px;color:#999">The Blondes Concept · ordini@theblondes.it</p>
+</div>`;
+}
+
+function buildShippedEmail(
+  firstName: string,
+  orderNumber: string,
+  trackingNumber: string,
+  carrier?: string
+): string {
+  return `
+<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1a1a1a">
+  <h1 style="font-size:24px;font-weight:normal;margin-bottom:4px">The Blondes Concept</h1>
+  <div style="width:40px;height:1px;background:#1a1a1a;margin-bottom:32px"></div>
+  <p>Cara ${firstName},</p>
+  <p>Il tuo ordine <strong>${orderNumber}</strong> è partito! 🎉</p>
+  <table style="width:100%;border-collapse:collapse;margin:24px 0;font-size:14px">
+    ${carrier ? `<tr><td style="padding:8px 0;color:#666;width:140px">Corriere</td><td>${carrier}</td></tr>` : ''}
+    <tr><td style="padding:8px 0;color:#666">Numero tracking</td><td><strong style="font-family:monospace;font-size:16px">${trackingNumber}</strong></td></tr>
+  </table>
+  <p>Usa il numero di tracking sul sito del corriere per seguire la spedizione in tempo reale.</p>
+  <p>Grazie per aver scelto The Blondes Concept.</p>
+  <hr style="border:none;border-top:1px solid #eee;margin:32px 0">
+  <p style="font-size:12px;color:#999">The Blondes Concept · ordini@theblondes.it</p>
+</div>`;
+}
