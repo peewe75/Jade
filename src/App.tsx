@@ -24,6 +24,7 @@ import Inventory from './pages/Inventory';
 import AdminOrders from './pages/AdminOrders';
 import AdminOrderDetail from './pages/AdminOrderDetail';
 import Account from './pages/Account';
+import OrderDetail from './pages/OrderDetail';
 import CookieBanner from './components/CookieBanner';
 import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
@@ -61,6 +62,7 @@ export default function App() {
               <Route path="/admin/orders" element={<AdminOrders />} />
               <Route path="/admin/orders/:id" element={<AdminOrderDetail />} />
               <Route path="/account" element={<Account />} />
+              <Route path="/account/orders/:id" element={<OrderDetail />} />
               <Route path="/cart" element={<Cart />} />
               <Route path="/checkout" element={<Checkout />} />
               <Route path="/checkout/success" element={<CheckoutSuccess />} />

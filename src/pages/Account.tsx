@@ -153,9 +153,10 @@ export default function Account() {
         ) : (
           <div className="space-y-3">
             {orders.map(order => (
-              <div
+              <Link
                 key={order.id}
-                className="border border-gray-100 p-5 flex items-center gap-4 hover:border-gray-300 transition-colors"
+                to={`/account/orders/${order.id}`}
+                className="border border-gray-100 p-5 flex items-center gap-4 hover:border-brand-black transition-colors"
               >
                 <div className="flex-grow">
                   <div className="flex flex-wrap items-center gap-3 mb-2">
@@ -178,17 +179,13 @@ export default function Account() {
                     €{(order.totals?.total / 100).toFixed(2)}
                   </p>
                   {order.paymentStatus === 'awaiting_payment' && (
-                    <Link
-                      to={`/checkout/pending?orderId=${order.id}`}
-                      onClick={e => e.stopPropagation()}
-                      className="text-[10px] uppercase tracking-widest underline underline-offset-2 text-amber-600 mt-1 block"
-                    >
+                    <span className="text-[10px] uppercase tracking-widest underline underline-offset-2 text-amber-600 mt-1 block">
                       Istruzioni pagamento
-                    </Link>
+                    </span>
                   )}
                 </div>
                 <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
-              </div>
+              </Link>
             ))}
           </div>
         )
