@@ -32,7 +32,8 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 interface TimelineEvent {
-  event: string;
+  event?: string;
+  status?: string;
   note?: string;
   at: Timestamp;
 }
@@ -339,7 +340,7 @@ export default function AdminOrderDetail() {
                 {timeline.map((ev, i) => (
                   <div key={i} className="relative">
                     <div className="absolute -left-[18px] top-1 w-2 h-2 rounded-full bg-brand-black" />
-                    <p className="text-xs font-medium capitalize">{ev.event.replace(/_/g, ' ')}</p>
+                    <p className="text-xs font-medium capitalize">{(ev.event ?? (ev as any).status ?? '').replace(/_/g, ' ')}</p>
                     {ev.note && <p className="text-xs text-gray-500 mt-0.5">{ev.note}</p>}
                     <p className="text-[10px] text-gray-400 mt-0.5">{formatDate(ev.at)}</p>
                   </div>
