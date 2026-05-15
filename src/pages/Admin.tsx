@@ -4,7 +4,7 @@ import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useFavorites } from '../contexts/FavoritesContext';
-import { LayoutGrid, Package, RefreshCw, Users, Heart, ExternalLink, Trash2 } from 'lucide-react';
+import { LayoutGrid, Package, RefreshCw, Users, Heart, ExternalLink, Trash2, ShoppingBag } from 'lucide-react';
 
 const ADMIN_EMAILS = ['mmalinverno76@gmail.com', 'peewe75@gmail.com', 'mmalinverno@gmail.com', 'avv.sapone@hotmail.it'];
 
@@ -14,6 +14,7 @@ export default function Admin() {
   const [clientsCount, setClientsCount] = useState(0);
   const [productsCount, setProductsCount] = useState(0);
   const [categoriesCount, setCategoriesCount] = useState(0);
+  const [ordersCount, setOrdersCount] = useState(0);
   const { favorites, toggleFavorite } = useFavorites();
   const [loading, setLoading] = useState(true);
 
@@ -36,15 +37,17 @@ export default function Admin() {
       if (!isAdminUser) return;
       setLoading(true);
       try {
-        const [clientsSnapshot, productsSnapshot, categoriesSnapshot] = await Promise.all([
+        const [clientsSnapshot, productsSnapshot, categoriesSnapshot, ordersSnapshot] = await Promise.all([
           getDocs(collection(db, 'clients')),
           getDocs(collection(db, 'products')),
           getDocs(collection(db, 'categories')),
+          getDocs(collection(db, 'orders')),
         ]);
 
         setClientsCount(clientsSnapshot.size);
         setProductsCount(productsSnapshot.size);
         setCategoriesCount(categoriesSnapshot.size);
+        setOrdersCount(ordersSnapshot.size);
       } catch (error) {
         console.error('Error fetching admin stats:', error);
       } finally {
@@ -162,6 +165,13 @@ export default function Admin() {
 
   const cards = [
     {
+      title: 'Ordini',
+      description: 'Visualizza e gestisci tutti gli ordini ricevuti.',
+      href: '/admin/orders',
+      icon: ShoppingBag,
+      count: ordersCount,
+    },
+    {
       title: 'CRM Clienti',
       description: 'Gestisci clienti, note e stato commerciale.',
       href: '/admin/crm',
@@ -204,7 +214,7 @@ export default function Admin() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {cards.map((card) => {
           const Icon = card.icon;
           return (
