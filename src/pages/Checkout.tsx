@@ -287,31 +287,7 @@ export default function Checkout() {
                   />
                 </button>
 
-                {/* Crypto */}
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('crypto')}
-                  className={`w-full border-2 p-5 flex items-center gap-4 text-left transition-colors ${
-                    paymentMethod === 'crypto'
-                      ? 'border-brand-black'
-                      : 'border-gray-100 hover:border-gray-300'
-                  }`}
-                >
-                  <Bitcoin className="w-5 h-5 shrink-0" />
-                  <div className="flex-grow">
-                    <p className="text-sm font-medium">{t('checkout.crypto')}</p>
-                    <p className="text-[10px] text-gray-400 uppercase tracking-widest mt-0.5">
-                      BTC · ETH · USDT · {t('checkout.cryptoSubtitle')}
-                    </p>
-                  </div>
-                  <div
-                    className={`w-4 h-4 rounded-full border-2 transition-colors ${
-                      paymentMethod === 'crypto'
-                        ? 'border-brand-black bg-brand-black'
-                        : 'border-gray-300'
-                    }`}
-                  />
-                </button>
+                {/* Crypto — temporarily disabled */}
               </div>
 
               <div className="flex gap-4">
