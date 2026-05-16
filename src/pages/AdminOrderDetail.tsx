@@ -380,16 +380,15 @@ export default function AdminOrderDetail() {
             </div>
           )}
 
-          {/* Shipping section */}
-          {order.paymentStatus === 'paid' && (
-            <div className="border border-gray-100 p-5">
+          {/* Shipping section — always visible so admin can ship regardless of payment status */}
+          <div className="border border-gray-100 p-5">
               <h3 className="text-xs uppercase tracking-widest text-gray-400 mb-4 flex items-center gap-2">
                 <Package className="w-3.5 h-3.5" />
                 Spedizione
               </h3>
 
-              {/* No quote yet → show form */}
-              {!order.shippingStatus && (
+              {/* No quote yet / pending → show quote + direct ship form */}
+              {(!order.shippingStatus || order.shippingStatus === 'pending') && (
                 <div className="space-y-3">
                   <div>
                     <label className="block text-[10px] uppercase tracking-widest text-gray-400 mb-1">Corriere</label>
@@ -436,6 +435,29 @@ export default function AdminOrderDetail() {
                   >
                     {quoteLoading ? 'Invio...' : 'Invia preventivo spedizione'}
                   </button>
+                  <div className="border-t border-gray-100 pt-3">
+                    <p className="text-[10px] uppercase tracking-widest text-gray-400 mb-2">Oppure segna subito come spedito</p>
+                    <input
+                      type="text"
+                      value={trackingInput}
+                      onChange={e => setTrackingInput(e.target.value)}
+                      placeholder="Numero tracking (obbligatorio)"
+                      className="w-full border border-gray-200 px-3 py-2 text-xs focus:outline-none focus:border-brand-black mb-2"
+                    />
+                    {trackingMsg && (
+                      <p className={`text-xs mb-2 ${trackingMsg.includes('Errore') ? 'text-red-500' : 'text-emerald-600'}`}>
+                        {trackingMsg}
+                      </p>
+                    )}
+                    <button
+                      onClick={() => void confirmShipping()}
+                      disabled={trackingLoading || !trackingInput.trim() || !quoteForm.courier.trim()}
+                      className="w-full py-3 border border-brand-black text-brand-black text-xs uppercase tracking-widest hover:bg-brand-black hover:text-white transition-colors disabled:opacity-40"
+                    >
+                      {trackingLoading ? 'Conferma...' : 'Segna spedito + invia tracking'}
+                    </button>
+                    {!quoteForm.courier.trim() && <p className="text-[10px] text-gray-400 mt-1">Inserisci corriere sopra per abilitare</p>}
+                  </div>
                 </div>
               )}
 
@@ -508,7 +530,7 @@ export default function AdminOrderDetail() {
                 </div>
               )}
             </div>
-          )}
+          </div>
 
           {/* Status summary card */}
           <div className="border border-gray-100 p-5">
