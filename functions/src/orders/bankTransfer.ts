@@ -240,7 +240,12 @@ export const adminConfirmBankTransfer = onCall<ConfirmInput, Promise<{ success: 
         const productSnap = await tx.get(productRef);
         if (!productSnap.exists) continue;
         const data = productSnap.data()!;
-        const updatedVariants = (data.variants as any[]).map((v: any) =>
+        const variants: any[] | undefined = data.variants;
+        if (!variants || (item.variantId as string).startsWith('legacy-')) {
+          tx.update(productRef, { updatedAt: FieldValue.serverTimestamp() });
+          continue;
+        }
+        const updatedVariants = variants.map((v: any) =>
           v.id === item.variantId
             ? {
                 ...v,

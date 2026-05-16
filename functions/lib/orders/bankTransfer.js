@@ -168,7 +168,12 @@ exports.adminConfirmBankTransfer = (0, https_1.onCall)({
             if (!productSnap.exists)
                 continue;
             const data = productSnap.data();
-            const updatedVariants = data.variants.map((v) => v.id === item.variantId
+            const variants = data.variants;
+            if (!variants || item.variantId.startsWith('legacy-')) {
+                tx.update(productRef, { updatedAt: firestore_1.FieldValue.serverTimestamp() });
+                continue;
+            }
+            const updatedVariants = variants.map((v) => v.id === item.variantId
                 ? {
                     ...v,
                     stock: Math.max(0, (v.stock ?? 0) - item.qty),
