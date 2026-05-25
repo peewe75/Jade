@@ -12,6 +12,7 @@ const ADMIN_EMAILS = [
     'peewe75@gmail.com',
     'mmalinverno@gmail.com',
     'avv.sapone@hotmail.it',
+    'customerstheblondesconcept@gmail.com',
 ];
 exports.onOrderCreated = (0, firestore_1.onDocumentCreated)({
     document: 'orders/{orderId}',

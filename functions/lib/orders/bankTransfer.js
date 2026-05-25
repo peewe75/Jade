@@ -17,6 +17,7 @@ const ADMIN_EMAILS = [
     'peewe75@gmail.com',
     'mmalinverno@gmail.com',
     'avv.sapone@hotmail.it',
+    'customerstheblondesconcept@gmail.com',
 ];
 exports.createBankTransferOrder = (0, https_1.onCall)({
     region: REGION,
