@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useFavorites } from '../contexts/FavoritesContext';
 import { LayoutGrid, Package, RefreshCw, Users, Heart, ExternalLink, Trash2, ShoppingBag } from 'lucide-react';
 
-const ADMIN_EMAILS = ['mmalinverno76@gmail.com', 'peewe75@gmail.com', 'mmalinverno@gmail.com', 'avv.sapone@hotmail.it'];
+const ADMIN_EMAILS = ['mmalinverno76@gmail.com', 'peewe75@gmail.com', 'mmalinverno@gmail.com', 'avv.sapone@hotmail.it', 'customerstheblondesconcept@gmail.com'];
 
 export default function Admin() {
   const { user, logout, loading: authLoading } = useAuth();

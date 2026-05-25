@@ -11,6 +11,7 @@ const ADMIN_EMAILS = [
   'peewe75@gmail.com',
   'mmalinverno@gmail.com',
   'avv.sapone@hotmail.it',
+  'customerstheblondesconcept@gmail.com',
 ];
 
 const STATUS_STYLES: Record<string, string> = {
@@ -529,7 +530,6 @@ export default function AdminOrderDetail() {
                   )}
                 </div>
               )}
-            </div>
           </div>
 
           {/* Status summary card */}

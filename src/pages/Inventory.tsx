@@ -8,7 +8,7 @@ import { uploadImageToStorage } from '../lib/storage';
 import { Trash2, Plus, RefreshCw, Upload, Image as ImageIcon, Edit2, X, Check, Search, Home, Users, LayoutGrid } from 'lucide-react';
 
 const AVAILABLE_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'One Size'];
-const ADMIN_EMAILS = ['mmalinverno76@gmail.com', 'peewe75@gmail.com', 'mmalinverno@gmail.com', 'avv.sapone@hotmail.it'];
+const ADMIN_EMAILS = ['mmalinverno76@gmail.com', 'peewe75@gmail.com', 'mmalinverno@gmail.com', 'avv.sapone@hotmail.it', 'customerstheblondesconcept@gmail.com'];
 
 export default function Inventory() {
   const { user, loading: authLoading } = useAuth();

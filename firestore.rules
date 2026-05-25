@@ -8,7 +8,8 @@ service cloud.firestore {
         "mmalinverno76@gmail.com",
         "mmalinverno@gmail.com",
         "peewe75@gmail.com",
-        "avv.sapone@hotmail.it"
+        "avv.sapone@hotmail.it",
+        "customerstheblondesconcept@gmail.com"
       ];
     }
     function isOwner(uid) {
