@@ -833,23 +833,23 @@ export default function Inventory() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Details &amp; Care (IT)</label>
-                  <textarea value={detailsIt} onChange={e => { setDetailsIt(e.target.value); setDetailsAndCare(e.target.value); }} rows={3} className="w-full border border-gray-300 p-2 text-sm"></textarea>
+                  <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Dettagli e cura (IT)</label>
+                  <textarea value={detailsIt} onChange={e => { setDetailsIt(e.target.value); setDetailsAndCare(e.target.value); }} rows={3} placeholder="Una riga per bullet point (es. 95% Seta&#10;Lavare a mano)" className="w-full border border-gray-300 p-2 text-sm"></textarea>
                 </div>
                 <div>
                   <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Details &amp; Care (EN)</label>
-                  <textarea value={detailsEn} onChange={e => setDetailsEn(e.target.value)} rows={3} className="w-full border border-gray-300 p-2 text-sm"></textarea>
+                  <textarea value={detailsEn} onChange={e => setDetailsEn(e.target.value)} rows={3} placeholder="One line per bullet (e.g. 95% Silk&#10;Hand wash)" className="w-full border border-gray-300 p-2 text-sm"></textarea>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Shipping (IT)</label>
-                  <textarea value={shippingIt} onChange={e => { setShippingIt(e.target.value); setShippingAndReturns(e.target.value); }} rows={3} className="w-full border border-gray-300 p-2 text-sm"></textarea>
+                  <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Spedizione e resi (IT)</label>
+                  <textarea value={shippingIt} onChange={e => { setShippingIt(e.target.value); setShippingAndReturns(e.target.value); }} rows={3} placeholder="Tempi spedizione, politica resi…" className="w-full border border-gray-300 p-2 text-sm"></textarea>
                 </div>
                 <div>
-                  <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Shipping (EN)</label>
-                  <textarea value={shippingEn} onChange={e => setShippingEn(e.target.value)} rows={3} className="w-full border border-gray-300 p-2 text-sm"></textarea>
+                  <label className="block text-xs uppercase tracking-widest text-gray-500 mb-1">Shipping &amp; Returns (EN)</label>
+                  <textarea value={shippingEn} onChange={e => setShippingEn(e.target.value)} rows={3} placeholder="Shipping times, return policy…" className="w-full border border-gray-300 p-2 text-sm"></textarea>
                 </div>
               </div>
               
