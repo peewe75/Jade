@@ -86,6 +86,9 @@ exports.vtoTryon = (0, https_1.onCall)({
     // comunque protetta dal check `request.auth.uid`.
     cors: [
         'https://theblondesconcept.netlify.app',
+        'https://theblondesconcept.com',
+        'https://www.theblondesconcept.com',
+        /^https:\/\/.*\.vercel\.app$/,
         /localhost(:\d+)?$/,
     ],
 }, async (request) => {

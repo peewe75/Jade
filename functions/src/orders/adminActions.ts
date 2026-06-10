@@ -19,6 +19,9 @@ const ADMIN_EMAILS = [
 const REGION = 'europe-west1';
 const CORS_ORIGINS: (string | RegExp)[] = [
   'https://theblondesconcept.netlify.app',
+  'https://theblondesconcept.com',
+  'https://www.theblondesconcept.com',
+  /^https:\/\/.*\.vercel\.app$/,
   /localhost(:\d+)?$/,
 ];
 

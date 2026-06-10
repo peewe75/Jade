@@ -18,6 +18,9 @@ const ipnUrl = (0, params_1.defineString)('NOWPAYMENTS_IPN_URL', { default: '' }
 const REGION = 'europe-west1';
 const CORS_ORIGINS = [
     'https://theblondesconcept.netlify.app',
+    'https://theblondesconcept.com',
+    'https://www.theblondesconcept.com',
+    /^https:\/\/.*\.vercel\.app$/,
     /localhost(:\d+)?$/,
 ];
 exports.createCryptoPayment = (0, https_1.onCall)({

@@ -14,6 +14,9 @@ const siteUrl = (0, params_1.defineString)('SITE_URL', { default: 'https://thebl
 const REGION = 'europe-west1';
 const CORS_ORIGINS = [
     'https://theblondesconcept.netlify.app',
+    'https://theblondesconcept.com',
+    'https://www.theblondesconcept.com',
+    /^https:\/\/.*\.vercel\.app$/,
     /localhost(:\d+)?$/,
 ];
 exports.createCheckoutSession = (0, https_1.onCall)({

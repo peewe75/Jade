@@ -103,6 +103,9 @@ export const vtoTryon = onCall<VTOInput, Promise<VTOOutput>>(
     // comunque protetta dal check `request.auth.uid`.
     cors: [
       'https://theblondesconcept.netlify.app',
+      'https://theblondesconcept.com',
+      'https://www.theblondesconcept.com',
+      /^https:\/\/.*\.vercel\.app$/,
       /localhost(:\d+)?$/,
     ],
   },
