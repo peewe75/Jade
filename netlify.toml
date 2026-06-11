@@ -9,12 +9,9 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/api/:splat"
-  status = 200
-
+# Sito migrato su Vercel: ogni URL netlify rimbalza sul dominio di produzione.
 [[redirects]]
   from = "/*"
-  to = "/index.html"
-  status = 200
+  to = "https://theblondesconcept.com/:splat"
+  status = 301
+  force = true
