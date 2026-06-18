@@ -15,6 +15,8 @@ import Home from './pages/Home';
 import Product from './pages/Product';
 import About from './pages/About';
 import CustomerCarePage from './pages/CustomerCarePage';
+import Recesso from './pages/Recesso';
+import RecessoForm from './pages/RecessoForm';
 import Login from './pages/Login';
 import MyTryOns from './pages/MyTryOns';
 import Shop from './pages/Shop';
@@ -54,6 +56,8 @@ export default function App() {
               <Route path="/terms" element={<CustomerCarePage variant="terms" />} />
               <Route path="/cookies" element={<CustomerCarePage variant="cookies" />} />
               <Route path="/accessibility" element={<CustomerCarePage variant="accessibility" />} />
+              <Route path="/recesso" element={<Recesso />} />
+              <Route path="/recesso/richiesta" element={<RecessoForm />} />
               <Route path="/my-try-ons" element={<MyTryOns />} />
               <Route path="/login" element={<Login />} />
               <Route path="/admin" element={<Admin />} />

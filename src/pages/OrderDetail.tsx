@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { doc, onSnapshot, Timestamp } from 'firebase/firestore';
-import { ChevronLeft, ExternalLink, Package } from 'lucide-react';
+import { ChevronLeft, ExternalLink, Package, Undo2 } from 'lucide-react';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -159,6 +159,17 @@ export default function OrderDetail() {
 
   const timeline = [...(order.timeline ?? [])].reverse();
   const shippingCost = order.totals.shippingCost ?? order.totals.shipping;
+
+  const recessoHref = `/recesso/richiesta?${new URLSearchParams({
+    orderId: id ?? '',
+    orderNumber: order.orderNumber,
+    email: order.shippingAddress.email,
+    firstName: order.shippingAddress.firstName,
+    lastName: order.shippingAddress.lastName,
+    items: order.items
+      .map(i => `${i.qty}× ${i.nameSnapshot}${i.sizeLabel ? ` · ${i.sizeLabel}` : ''}`)
+      .join('\n'),
+  }).toString()}`;
 
   return (
     <main className="flex-grow pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto w-full">
@@ -368,6 +379,25 @@ export default function OrderDetail() {
               </div>
             </div>
           </div>
+
+          {order.paymentStatus === 'paid' && (
+            <div className="border border-gray-100 p-5">
+              <h3 className="text-xs uppercase tracking-widest text-gray-400 mb-3 flex items-center gap-2">
+                <Undo2 className="w-3.5 h-3.5" />
+                Diritto di recesso
+              </h3>
+              <p className="text-xs text-gray-500 leading-6 mb-4">
+                Hai 14 giorni dalla ricezione per recedere dal contratto, senza fornire
+                motivazioni (art. 54-bis Cod. Consumo).
+              </p>
+              <Link
+                to={recessoHref}
+                className="block w-full text-center px-4 py-3 border border-brand-black text-[10px] uppercase tracking-widest font-medium hover:bg-brand-black hover:text-white transition-colors"
+              >
+                Recedere dal contratto qui
+              </Link>
+            </div>
+          )}
 
           {order.bankDetails && order.paymentStatus === 'awaiting_payment' && (
             <div className="border border-gray-100 p-5">

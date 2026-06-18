@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { httpsCallable } from 'firebase/functions';
 import { CreditCard, Building2, Bitcoin, ChevronRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -346,6 +346,23 @@ export default function Checkout() {
                   {error}
                 </p>
               )}
+
+              {/* Avviso diritto di recesso — art. 49 D.Lgs. 206/2005 */}
+              <div className="mb-6 border border-gray-100 bg-gray-50 px-5 py-4 text-[11px] leading-6 text-gray-500">
+                Procedendo con l'acquisto accetti i nostri{' '}
+                <Link to="/terms" className="underline underline-offset-2 hover:text-brand-black">
+                  Termini e Condizioni
+                </Link>
+                {' '}e la{' '}
+                <Link to="/privacy-policy" className="underline underline-offset-2 hover:text-brand-black">
+                  Privacy Policy
+                </Link>
+                . Ai sensi del D.Lgs. 206/2005 hai il{' '}
+                <Link to="/recesso" className="font-medium underline underline-offset-2 hover:text-brand-black">
+                  diritto di recesso
+                </Link>
+                {' '}entro <strong>14 giorni</strong> dalla ricezione dei beni, senza fornire alcuna motivazione.
+              </div>
 
               <div className="flex gap-4">
                 <button

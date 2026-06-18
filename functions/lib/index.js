@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.vtoTryon = exports.adminConfirmShipping = exports.adminQuoteShipping = exports.onOrderCreated = exports.nowPaymentsWebhook = exports.createCryptoPayment = exports.adminConfirmBankTransfer = exports.createBankTransferOrder = exports.stripeWebhook = exports.createCheckoutSession = void 0;
+exports.vtoTryon = exports.submitWithdrawalRequest = exports.adminConfirmShipping = exports.adminQuoteShipping = exports.onOrderCreated = exports.nowPaymentsWebhook = exports.createCryptoPayment = exports.adminConfirmBankTransfer = exports.createBankTransferOrder = exports.stripeWebhook = exports.createCheckoutSession = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const params_1 = require("firebase-functions/params");
 const app_1 = require("firebase-admin/app");
@@ -22,6 +22,8 @@ Object.defineProperty(exports, "onOrderCreated", { enumerable: true, get: functi
 var adminActions_1 = require("./orders/adminActions");
 Object.defineProperty(exports, "adminQuoteShipping", { enumerable: true, get: function () { return adminActions_1.adminQuoteShipping; } });
 Object.defineProperty(exports, "adminConfirmShipping", { enumerable: true, get: function () { return adminActions_1.adminConfirmShipping; } });
+var withdrawal_1 = require("./legal/withdrawal");
+Object.defineProperty(exports, "submitWithdrawalRequest", { enumerable: true, get: function () { return withdrawal_1.submitWithdrawalRequest; } });
 (0, app_1.initializeApp)();
 const openrouterKey = (0, params_1.defineSecret)('OPENROUTER_API_KEY');
 const VTO_MODEL = 'google/gemini-2.5-flash-image';

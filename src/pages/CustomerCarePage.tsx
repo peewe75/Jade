@@ -47,27 +47,27 @@ const pageContent: Record<CustomerCareVariant, {
   },
   shipping: {
     eyebrow: 'Customer Care',
-    title: 'Shipping & Returns',
+    title: 'Spedizioni & Resi',
     intro:
-      'Every order is prepared with care. Below is a clear overview of how dispatch, delivery, and returns are handled for the online boutique.',
+      'Ogni ordine è preparato con cura. Di seguito una panoramica chiara su spedizione, consegna e resi — incluso il tuo diritto legale di recesso ai sensi del D.Lgs. 206/2005.',
     sections: [
       {
-        heading: 'Processing Time',
+        heading: 'Tempi di Preparazione',
         body:
-          'Orders are typically prepared within 1 to 3 business days. During launches, holidays, or limited drops, processing may take slightly longer to preserve quality control and packaging standards.'
+          'Gli ordini sono solitamente preparati entro 1–3 giorni lavorativi. Durante i lanci, i periodi festivi o i drop limitati, i tempi possono prolungarsi leggermente per garantire gli standard di qualità e confezionamento.'
       },
       {
-        heading: 'Shipping Window',
+        heading: 'Spedizione e Tracking',
         body:
-          'Delivery timing depends on destination and courier conditions. Once the order is dispatched, tracking details are shared through the contact information used during checkout.'
+          'I tempi di consegna dipendono dalla destinazione e dalle condizioni del corriere. Una volta spedito l\'ordine, i dettagli di tracking vengono condivisi tramite i recapiti forniti al checkout.'
       },
       {
-        heading: 'Returns',
+        heading: 'Resi e Diritto di Recesso',
         body:
-          'Returns should be requested promptly after delivery and items must be unworn, unwashed, and returned with original tags and packaging intact. Final approval depends on the condition of the piece once received back.'
+          'Hai diritto di recedere dal contratto entro 14 giorni dalla ricezione dei beni, senza fornire alcuna motivazione (D.Lgs. 206/2005). I capi devono essere non indossati, non lavati, con etichette e imballaggi originali intatti. Per il modulo di recesso e tutti i dettagli, consulta la pagina Diritto di Recesso.'
       }
     ],
-    highlights: ['1-3 business day processing', 'Tracked dispatch updates', 'Care-first return review']
+    highlights: ['Preparazione 1–3 gg lavorativi', 'Tracking spedizione', 'Recesso 14 giorni (D.Lgs. 206/2005)']
   },
   'size-guide': {
     eyebrow: 'Customer Care',
@@ -118,28 +118,28 @@ const pageContent: Record<CustomerCareVariant, {
     highlights: ['Essential order data only', 'Experience and account support', 'Control over marketing updates']
   },
   terms: {
-    eyebrow: 'Legal',
-    title: 'Terms & Conditions',
+    eyebrow: 'Legale',
+    title: 'Termini e Condizioni',
     intro:
-      'These terms outline the general framework for browsing, purchasing, and interacting with the online boutique experience of The Blondes.',
+      'Questi termini definiscono il quadro generale per la navigazione, l\'acquisto e l\'interazione con il negozio online The Blondes. Per il diritto di recesso si rimanda alla pagina dedicata.',
     sections: [
       {
-        heading: 'Use Of The Site',
+        heading: 'Uso del Sito',
         body:
-          'By continuing to browse the site, visitors agree to use its content, imagery, and services lawfully and without interfering with the performance, security, or presentation of the platform.'
+          'Continuando a navigare il sito, i visitatori accettano di utilizzarne contenuti, immagini e servizi in modo lecito, senza interferire con le prestazioni, la sicurezza o la presentazione della piattaforma.'
       },
       {
-        heading: 'Product Information',
+        heading: 'Informazioni sui Prodotti',
         body:
-          'We aim to present products, prices, and descriptions as accurately as possible. Minor differences in color, finish, or styling perception may occur due to screens, lighting, and editorial presentation.'
+          'Ci impegniamo a presentare prodotti, prezzi e descrizioni nel modo più accurato possibile. Lievi differenze di colore, finitura o resa visiva possono verificarsi a causa di schermi, illuminazione e presentazione editoriale.'
       },
       {
-        heading: 'Order Acceptance',
+        heading: 'Accettazione degli Ordini e Recesso',
         body:
-          'An order request is subject to review and availability. We reserve the right to refuse, cancel, or adjust orders if product availability, payment validation, or operational issues require intervention.'
+          'Un ordine è soggetto a verifica e disponibilità. Ci riserviamo di rifiutare, annullare o rettificare ordini se necessario. Il consumatore ha diritto di recedere dal contratto entro 14 giorni dalla ricezione dei beni ai sensi del D.Lgs. 206/2005. Per dettagli completi consulta la pagina Diritto di Recesso.'
       }
     ],
-    highlights: ['Lawful site use', 'Editorial accuracy with limits', 'Order review and acceptance']
+    highlights: ['Uso lecito del sito', 'Accuratezza editoriale', 'Recesso 14 giorni garantito']
   },
   cookies: {
     eyebrow: 'Legal',

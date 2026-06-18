@@ -102,6 +102,7 @@ export default function Footer() {
               <li><Link to="/shipping-returns" className="hover:text-white transition-colors">Shipping & Returns</Link></li>
               <li><Link to="/size-guide" className="hover:text-white transition-colors">Size Guide</Link></li>
               <li><Link to="/privacy-policy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
+              <li><Link to="/recesso" className="hover:text-white transition-colors">Diritto di Recesso</Link></li>
             </ul>
           </div>
 

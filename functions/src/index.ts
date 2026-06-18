@@ -11,6 +11,7 @@ export { createBankTransferOrder, adminConfirmBankTransfer } from './orders/bank
 export { createCryptoPayment, nowPaymentsWebhook } from './orders/cryptoPayment';
 export { onOrderCreated } from './orders/onOrderCreated';
 export { adminQuoteShipping, adminConfirmShipping } from './orders/adminActions';
+export { submitWithdrawalRequest } from './legal/withdrawal';
 
 initializeApp();
 
