@@ -43,6 +43,7 @@ interface WithdrawalInput {
   itemsDescription: string;
   orderDate?: string | null;
   deliveryDate?: string | null;
+  locale?: 'it' | 'en';
 }
 
 interface WithdrawalOutput {
@@ -69,6 +70,7 @@ export const submitWithdrawalRequest = onCall<WithdrawalInput, Promise<Withdrawa
     const itemsDescription = (data.itemsDescription ?? '').trim();
     const orderDate = (data.orderDate ?? '').trim();
     const deliveryDate = (data.deliveryDate ?? '').trim();
+    const locale: 'it' | 'en' = data.locale === 'en' ? 'en' : 'it';
 
     // --- Validazione minima ---
     if (!firstName || !lastName) {
@@ -163,16 +165,21 @@ export const submitWithdrawalRequest = onCall<WithdrawalInput, Promise<Withdrawa
       const resend = new Resend(rKey);
       // 1) Ricevuta al consumatore — requisito di legge
       try {
+        const consumerSubject =
+          locale === 'en'
+            ? `Withdrawal receipt ${withdrawalNumber} – ${orderNumber}`
+            : `Ricevuta di recesso ${withdrawalNumber} – ${orderNumber}`;
         await resend.emails.send({
           from: 'The Blondes Concept <ordini@theblondes.it>',
           to: email,
-          subject: `Ricevuta di recesso ${withdrawalNumber} – ${orderNumber}`,
+          subject: consumerSubject,
           html: buildConsumerAckEmail({
             firstName,
             withdrawalNumber,
             orderNumber,
             declarationText,
             receivedAtLabel,
+            locale,
           }),
         });
         ackSent = true;
@@ -246,14 +253,62 @@ function buildDeclarationText(args: {
   return lines.join('\n');
 }
 
+interface ConsumerAckCopy {
+  header: string;
+  greeting: (firstName: string) => string;
+  confirmationBefore: string;
+  confirmationAfter: string;
+  referenceLabel: string;
+  receivedAtLabel: string;
+  declarationHeading: string;
+  refundParagraph: string;
+  returnParagraph: string;
+}
+
+const CONSUMER_ACK_COPY: Record<'it' | 'en', ConsumerAckCopy> = {
+  it: {
+    header: 'Avviso di ricevimento del recesso',
+    greeting: (firstName) => `Ciao ${firstName},`,
+    confirmationBefore:
+      "Confermiamo di aver ricevuto la tua dichiarazione di recesso relativa all'ordine <strong>",
+    confirmationAfter:
+      "</strong>. Questo messaggio costituisce avviso di ricevimento su supporto durevole ai sensi dell'art. 54-bis del Codice del Consumo.",
+    referenceLabel: 'Riferimento recesso',
+    receivedAtLabel: 'Data e ora di ricezione',
+    declarationHeading: 'Contenuto della dichiarazione',
+    refundParagraph:
+      'Provvederemo al rimborso senza indebito ritardo e comunque entro <strong>14 giorni</strong> dal ricevimento di questa comunicazione, con lo stesso mezzo di pagamento da te utilizzato. Il rimborso può essere trattenuto fino al ricevimento dei beni o alla prova della loro spedizione.',
+    returnParagraph:
+      'Restituisci i beni senza indebito ritardo e comunque entro 14 giorni, integri e con etichette e imballaggi originali. I costi diretti della restituzione sono a tuo carico.',
+  },
+  en: {
+    header: 'Acknowledgement of receipt of withdrawal',
+    greeting: (firstName) => `Hi ${firstName},`,
+    confirmationBefore:
+      'We confirm that we have received your withdrawal declaration relating to order <strong>',
+    confirmationAfter:
+      '</strong>. This message constitutes an acknowledgement of receipt on a durable medium pursuant to art. 54-bis of the Italian Consumer Code.',
+    referenceLabel: 'Withdrawal reference',
+    receivedAtLabel: 'Date and time of receipt',
+    declarationHeading: 'Content of the declaration',
+    refundParagraph:
+      'We will issue the refund without undue delay and in any case within <strong>14 days</strong> of receiving this communication, using the same means of payment you used. The refund may be withheld until we receive the goods or proof of their dispatch.',
+    returnParagraph:
+      'Please return the goods without undue delay and in any case within 14 days, intact and with their original tags and packaging. The direct costs of returning the goods are borne by you.',
+  },
+};
+
 function buildConsumerAckEmail(args: {
   firstName: string;
   withdrawalNumber: string;
   orderNumber: string;
   declarationText: string;
   receivedAtLabel: string;
+  locale: 'it' | 'en';
 }): string {
-  const { firstName, withdrawalNumber, orderNumber, declarationText, receivedAtLabel } = args;
+  const { firstName, withdrawalNumber, orderNumber, declarationText, receivedAtLabel, locale } =
+    args;
+  const t = CONSUMER_ACK_COPY[locale];
   const declarationHtml = declarationText
     .split('\n')
     .map((l) => (l ? l : '&nbsp;'))
@@ -262,30 +317,24 @@ function buildConsumerAckEmail(args: {
   return `
     <div style="font-family:-apple-system,sans-serif;max-width:560px;margin:0 auto;color:#1a1a1a;padding:32px 24px">
       <h1 style="font-family:Georgia,serif;font-size:26px;margin:0 0 4px">The Blondes Concept</h1>
-      <p style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.12em;margin:0 0 40px">Avviso di ricevimento del recesso</p>
-      <p style="font-size:15px;margin:0 0 8px">Ciao ${firstName},</p>
+      <p style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:0.12em;margin:0 0 40px">${t.header}</p>
+      <p style="font-size:15px;margin:0 0 8px">${t.greeting(firstName)}</p>
       <p style="font-size:15px;line-height:1.7;color:#444;margin:0 0 24px">
-        Confermiamo di aver ricevuto la tua dichiarazione di recesso relativa all'ordine
-        <strong>${orderNumber}</strong>. Questo messaggio costituisce avviso di ricevimento su
-        supporto durevole ai sensi dell'art. 54-bis del Codice del Consumo.
+        ${t.confirmationBefore}${orderNumber}${t.confirmationAfter}
       </p>
       <div style="background:#fafafa;border:1px solid #e8e8e8;padding:24px;margin-bottom:24px">
         <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:16px">
-          <tr><td style="padding:6px 0;color:#888;width:170px">Riferimento recesso</td><td style="padding:6px 0;font-weight:600;font-family:monospace">${withdrawalNumber}</td></tr>
-          <tr><td style="padding:6px 0;color:#888">Data e ora di ricezione</td><td style="padding:6px 0;font-weight:600">${receivedAtLabel}</td></tr>
+          <tr><td style="padding:6px 0;color:#888;width:170px">${t.referenceLabel}</td><td style="padding:6px 0;font-weight:600;font-family:monospace">${withdrawalNumber}</td></tr>
+          <tr><td style="padding:6px 0;color:#888">${t.receivedAtLabel}</td><td style="padding:6px 0;font-weight:600">${receivedAtLabel}</td></tr>
         </table>
-        <p style="font-size:11px;text-transform:uppercase;letter-spacing:0.12em;color:#888;margin:0 0 10px">Contenuto della dichiarazione</p>
+        <p style="font-size:11px;text-transform:uppercase;letter-spacing:0.12em;color:#888;margin:0 0 10px">${t.declarationHeading}</p>
         <p style="font-size:13px;line-height:1.7;color:#444;margin:0;white-space:pre-line">${declarationHtml}</p>
       </div>
       <p style="font-size:13px;color:#666;line-height:1.7;margin:0 0 16px">
-        Provvederemo al rimborso senza indebito ritardo e comunque entro <strong>14 giorni</strong>
-        dal ricevimento di questa comunicazione, con lo stesso mezzo di pagamento da te utilizzato.
-        Il rimborso può essere trattenuto fino al ricevimento dei beni o alla prova della loro
-        spedizione.
+        ${t.refundParagraph}
       </p>
       <p style="font-size:13px;color:#666;line-height:1.7;margin:0 0 40px">
-        Restituisci i beni senza indebito ritardo e comunque entro 14 giorni, integri e con
-        etichette e imballaggi originali. I costi diretti della restituzione sono a tuo carico.
+        ${t.returnParagraph}
       </p>
       <hr style="border:none;border-top:1px solid #e8e8e8;margin:0 0 20px" />
       <p style="font-size:11px;color:#aaa;text-align:center;margin:0">© ${new Date().getFullYear()} The Blondes Concept · theblondesconcept.com</p>

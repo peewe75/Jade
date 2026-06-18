@@ -1,5 +1,6 @@
 import { useState, type ChangeEvent } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { httpsCallable } from 'firebase/functions';
 import { CheckCircle2, ChevronLeft } from 'lucide-react';
 import { functions } from '../firebase';
@@ -22,11 +23,121 @@ interface WithdrawalResult {
   receivedAtLabel: string;
 }
 
+interface RecessoCopy {
+  backLink: string;
+  title: string;
+  intro: string;
+  firstNameLabel: string;
+  lastNameLabel: string;
+  emailLabel: string;
+  orderNumberLabel: string;
+  orderNumberPlaceholder: string;
+  itemsLabel: string;
+  itemsPlaceholder: string;
+  orderDateLabel: string;
+  deliveryDateLabel: string;
+  continue: string;
+  confirmTitle: string;
+  confirmIntro: string;
+  rowOrder: string;
+  rowOrderedOn: string;
+  rowReceivedOn: string;
+  rowConsumer: string;
+  rowReceipt: string;
+  edit: string;
+  confirmWithdrawal: string;
+  sending: string;
+  submitError: string;
+  doneTitle: string;
+  doneIntroBefore: string;
+  doneIntroAfter: string;
+  reference: string;
+  receivedAt: string;
+  backHome: string;
+}
+
+const COPY: Record<'it' | 'en', RecessoCopy> = {
+  it: {
+    backLink: 'Diritto di recesso',
+    title: 'Recedere dal contratto',
+    intro:
+      'Compila il modulo per esercitare il diritto di recesso entro 14 giorni dalla ricezione dei beni (art. 54-bis Codice del Consumo). Riceverai un avviso di ricevimento via email.',
+    firstNameLabel: 'Nome *',
+    lastNameLabel: 'Cognome *',
+    emailLabel: 'Email (per la ricevuta) *',
+    orderNumberLabel: "Numero d'ordine *",
+    orderNumberPlaceholder: 'JD-2026-0001',
+    itemsLabel: 'Beni oggetto del recesso *',
+    itemsPlaceholder: 'Es. 1× Abito in seta, taglia M',
+    orderDateLabel: "Data dell'ordine",
+    deliveryDateLabel: 'Data di ricezione',
+    continue: 'Continua',
+    confirmTitle: 'Conferma il recesso',
+    confirmIntro:
+      'Con la presente comunico il recesso dal contratto di vendita relativo ai seguenti beni:',
+    rowOrder: 'Ordine',
+    rowOrderedOn: 'Ordinato il',
+    rowReceivedOn: 'Ricevuto il',
+    rowConsumer: 'Consumatore',
+    rowReceipt: 'Ricevuta a',
+    edit: 'Modifica',
+    confirmWithdrawal: 'Conferma recesso',
+    sending: 'Invio…',
+    submitError: 'Invio non riuscito. Riprova.',
+    doneTitle: 'Recesso registrato',
+    doneIntroBefore:
+      'Abbiamo ricevuto la tua dichiarazione di recesso. Un avviso di ricevimento è stato inviato a ',
+    doneIntroAfter: ' e costituisce conferma su supporto durevole.',
+    reference: 'Riferimento',
+    receivedAt: 'Data e ora di ricezione',
+    backHome: 'Torna alla home',
+  },
+  en: {
+    backLink: 'Right of withdrawal',
+    title: 'Withdraw from the contract',
+    intro:
+      'Fill in the form to exercise your right of withdrawal within 14 days of receiving the goods (art. 54-bis Italian Consumer Code). You will receive an acknowledgement of receipt by email.',
+    firstNameLabel: 'First name *',
+    lastNameLabel: 'Last name *',
+    emailLabel: 'Email (for the receipt) *',
+    orderNumberLabel: 'Order number *',
+    orderNumberPlaceholder: 'JD-2026-0001',
+    itemsLabel: 'Goods subject to withdrawal *',
+    itemsPlaceholder: 'E.g. 1× Silk dress, size M',
+    orderDateLabel: 'Order date',
+    deliveryDateLabel: 'Delivery date',
+    continue: 'Continue',
+    confirmTitle: 'Confirm the withdrawal',
+    confirmIntro:
+      'I hereby give notice of withdrawal from the contract of sale relating to the following goods:',
+    rowOrder: 'Order',
+    rowOrderedOn: 'Ordered on',
+    rowReceivedOn: 'Received on',
+    rowConsumer: 'Consumer',
+    rowReceipt: 'Receipt sent to',
+    edit: 'Edit',
+    confirmWithdrawal: 'Confirm withdrawal',
+    sending: 'Sending…',
+    submitError: 'Submission failed. Please try again.',
+    doneTitle: 'Withdrawal registered',
+    doneIntroBefore:
+      'We have received your withdrawal declaration. An acknowledgement of receipt has been sent to ',
+    doneIntroAfter: ' and constitutes confirmation on a durable medium.',
+    reference: 'Reference',
+    receivedAt: 'Date and time of receipt',
+    backHome: 'Back to home',
+  },
+};
+
 const inputClass =
   'w-full border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:border-brand-black transition-colors';
 const labelClass = 'block text-[10px] uppercase tracking-widest text-gray-500 mb-1';
 
 export default function RecessoForm() {
+  const { i18n } = useTranslation();
+  const lang: 'it' | 'en' = i18n.language.startsWith('it') ? 'it' : 'en';
+  const c = COPY[lang];
+
   const [params] = useSearchParams();
   const orderId = params.get('orderId');
 
@@ -61,15 +172,15 @@ export default function RecessoForm() {
     setLoading(true);
     setError('');
     try {
-      const callFn = httpsCallable<WithdrawalForm & { orderId: string | null }, WithdrawalResult>(
-        functions,
-        'submitWithdrawalRequest'
-      );
-      const res = await callFn({ ...form, orderId });
+      const callFn = httpsCallable<
+        WithdrawalForm & { orderId: string | null; locale: 'it' | 'en' },
+        WithdrawalResult
+      >(functions, 'submitWithdrawalRequest');
+      const res = await callFn({ ...form, orderId, locale: lang });
       setResult(res.data);
       setStep('done');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Invio non riuscito. Riprova.';
+      const msg = err instanceof Error ? err.message : c.submitError;
       setError(msg);
     } finally {
       setLoading(false);
@@ -83,14 +194,13 @@ export default function RecessoForm() {
         className="inline-flex items-center gap-1 text-xs uppercase tracking-widest text-gray-400 hover:text-brand-black transition-colors mb-6"
       >
         <ChevronLeft className="w-3 h-3" />
-        Diritto di recesso
+        {c.backLink}
       </Link>
 
-      <h1 className="text-4xl font-serif mb-2">Recedere dal contratto</h1>
+      <h1 className="text-4xl font-serif mb-2">{c.title}</h1>
       <div className="w-12 h-[1px] bg-brand-black mb-4" />
       <p className="text-sm leading-7 text-gray-500 mb-10 max-w-2xl">
-        Compila il modulo per esercitare il diritto di recesso entro 14 giorni dalla ricezione dei
-        beni (art. 54-bis Codice del Consumo). Riceverai un avviso di ricevimento via email.
+        {c.intro}
       </p>
 
       {/* Step: Form */}
@@ -98,42 +208,42 @@ export default function RecessoForm() {
         <div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div>
-              <label className={labelClass}>Nome *</label>
+              <label className={labelClass}>{c.firstNameLabel}</label>
               <input type="text" value={form.firstName} onChange={field('firstName')} className={inputClass} autoComplete="given-name" />
             </div>
             <div>
-              <label className={labelClass}>Cognome *</label>
+              <label className={labelClass}>{c.lastNameLabel}</label>
               <input type="text" value={form.lastName} onChange={field('lastName')} className={inputClass} autoComplete="family-name" />
             </div>
           </div>
 
           <div className="mb-4">
-            <label className={labelClass}>Email (per la ricevuta) *</label>
+            <label className={labelClass}>{c.emailLabel}</label>
             <input type="email" value={form.email} onChange={field('email')} className={inputClass} autoComplete="email" />
           </div>
 
           <div className="mb-4">
-            <label className={labelClass}>Numero d'ordine *</label>
-            <input type="text" value={form.orderNumber} onChange={field('orderNumber')} className={inputClass} placeholder="JD-2026-0001" />
+            <label className={labelClass}>{c.orderNumberLabel}</label>
+            <input type="text" value={form.orderNumber} onChange={field('orderNumber')} className={inputClass} placeholder={c.orderNumberPlaceholder} />
           </div>
 
           <div className="mb-4">
-            <label className={labelClass}>Beni oggetto del recesso *</label>
+            <label className={labelClass}>{c.itemsLabel}</label>
             <textarea
               value={form.itemsDescription}
               onChange={field('itemsDescription')}
               className={`${inputClass} min-h-[90px] resize-y`}
-              placeholder="Es. 1× Abito in seta, taglia M"
+              placeholder={c.itemsPlaceholder}
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
             <div>
-              <label className={labelClass}>Data dell'ordine</label>
+              <label className={labelClass}>{c.orderDateLabel}</label>
               <input type="date" value={form.orderDate} onChange={field('orderDate')} className={inputClass} />
             </div>
             <div>
-              <label className={labelClass}>Data di ricezione</label>
+              <label className={labelClass}>{c.deliveryDateLabel}</label>
               <input type="date" value={form.deliveryDate} onChange={field('deliveryDate')} className={inputClass} />
             </div>
           </div>
@@ -143,7 +253,7 @@ export default function RecessoForm() {
             disabled={!formValid}
             className="w-full sm:w-auto px-12 py-4 bg-brand-black text-white text-xs uppercase tracking-widest font-medium hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            Continua
+            {c.continue}
           </button>
         </div>
       )}
@@ -151,19 +261,19 @@ export default function RecessoForm() {
       {/* Step: Confirm (funzione di conferma richiesta dalla legge) */}
       {step === 'confirm' && (
         <div>
-          <h2 className="text-xl font-serif mb-6">Conferma il recesso</h2>
+          <h2 className="text-xl font-serif mb-6">{c.confirmTitle}</h2>
           <div className="border border-gray-100 bg-gray-50 p-6 mb-6 text-sm leading-7 text-gray-700">
             <p className="mb-3">
-              Con la presente comunico il recesso dal contratto di vendita relativo ai seguenti beni:
+              {c.confirmIntro}
             </p>
             <p className="font-medium whitespace-pre-line mb-4">{form.itemsDescription}</p>
             <table className="w-full text-sm">
               <tbody>
-                <tr><td className="py-1 text-gray-400 w-40">Ordine</td><td className="py-1 font-medium">{form.orderNumber}</td></tr>
-                {form.orderDate && <tr><td className="py-1 text-gray-400">Ordinato il</td><td className="py-1">{form.orderDate}</td></tr>}
-                {form.deliveryDate && <tr><td className="py-1 text-gray-400">Ricevuto il</td><td className="py-1">{form.deliveryDate}</td></tr>}
-                <tr><td className="py-1 text-gray-400">Consumatore</td><td className="py-1">{form.firstName} {form.lastName}</td></tr>
-                <tr><td className="py-1 text-gray-400">Ricevuta a</td><td className="py-1">{form.email}</td></tr>
+                <tr><td className="py-1 text-gray-400 w-40">{c.rowOrder}</td><td className="py-1 font-medium">{form.orderNumber}</td></tr>
+                {form.orderDate && <tr><td className="py-1 text-gray-400">{c.rowOrderedOn}</td><td className="py-1">{form.orderDate}</td></tr>}
+                {form.deliveryDate && <tr><td className="py-1 text-gray-400">{c.rowReceivedOn}</td><td className="py-1">{form.deliveryDate}</td></tr>}
+                <tr><td className="py-1 text-gray-400">{c.rowConsumer}</td><td className="py-1">{form.firstName} {form.lastName}</td></tr>
+                <tr><td className="py-1 text-gray-400">{c.rowReceipt}</td><td className="py-1">{form.email}</td></tr>
               </tbody>
             </table>
           </div>
@@ -178,14 +288,14 @@ export default function RecessoForm() {
               disabled={loading}
               className="px-8 py-4 border border-gray-200 text-xs uppercase tracking-widest font-medium hover:border-brand-black transition-colors disabled:opacity-40"
             >
-              Modifica
+              {c.edit}
             </button>
             <button
               onClick={() => void handleConfirm()}
               disabled={loading}
               className="flex-1 sm:flex-none px-12 py-4 bg-brand-black text-white text-xs uppercase tracking-widest font-medium hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {loading ? 'Invio…' : 'Conferma recesso'}
+              {loading ? c.sending : c.confirmWithdrawal}
             </button>
           </div>
         </div>
@@ -195,15 +305,14 @@ export default function RecessoForm() {
       {step === 'done' && result && (
         <div className="border border-gray-100 p-8 text-center">
           <CheckCircle2 className="w-12 h-12 mx-auto text-emerald-600 mb-4" strokeWidth={1.5} />
-          <h2 className="text-2xl font-serif mb-3">Recesso registrato</h2>
+          <h2 className="text-2xl font-serif mb-3">{c.doneTitle}</h2>
           <p className="text-sm leading-7 text-gray-600 max-w-md mx-auto mb-6">
-            Abbiamo ricevuto la tua dichiarazione di recesso. Un avviso di ricevimento è stato
-            inviato a <strong>{form.email}</strong> e costituisce conferma su supporto durevole.
+            {c.doneIntroBefore}<strong>{form.email}</strong>{c.doneIntroAfter}
           </p>
           <div className="inline-block border border-gray-100 bg-gray-50 px-6 py-4 text-left text-sm">
-            <p className="text-gray-400 text-[10px] uppercase tracking-widest mb-1">Riferimento</p>
+            <p className="text-gray-400 text-[10px] uppercase tracking-widest mb-1">{c.reference}</p>
             <p className="font-mono font-medium mb-3">{result.withdrawalNumber}</p>
-            <p className="text-gray-400 text-[10px] uppercase tracking-widest mb-1">Data e ora di ricezione</p>
+            <p className="text-gray-400 text-[10px] uppercase tracking-widest mb-1">{c.receivedAt}</p>
             <p className="font-medium">{result.receivedAtLabel}</p>
           </div>
           <div className="mt-8">
@@ -211,7 +320,7 @@ export default function RecessoForm() {
               to="/"
               className="inline-block px-12 py-4 bg-brand-black text-white text-xs uppercase tracking-widest font-medium hover:opacity-90 transition-opacity"
             >
-              Torna alla home
+              {c.backHome}
             </Link>
           </div>
         </div>
